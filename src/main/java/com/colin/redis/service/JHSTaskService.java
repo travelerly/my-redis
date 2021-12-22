@@ -17,6 +17,8 @@ import java.util.concurrent.TimeUnit;
 /**
  * @author colin
  * @create 2021-05-24 09:08
+ *
+ * 采用定时器将参与聚划算活动的特价商品新增进入redis中
  */
 @Service
 @Slf4j
@@ -27,7 +29,8 @@ public class JHSTaskService {
 
     @PostConstruct
     public void initJHS(){
-        log .info( " 启动定时器淘宝聚划算功能模拟 .........." + DateUtil. now ());
+
+        log.info(" 启动定时器淘宝聚划算功能模拟 .........." + DateUtil.now());
         new Thread(()->{
             // 模拟定时器，定时把数据库的特价商品，刷新到 redis 中
             while (true){

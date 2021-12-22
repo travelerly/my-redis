@@ -41,8 +41,8 @@ public class RedLockController {
 
         try {
 
-            //waitTime 锁的等待时间处理,正常情况下 等5s
-            //leaseTime就是redis key的过期时间,正常情况下等5分钟。
+            // waitTime 锁的等待时间处理,正常情况下 等5s
+            // leaseTime就是redis key的过期时间,正常情况下等5分钟。
             isLock = redLock.tryLock(5, 300, TimeUnit.SECONDS);
             log.info("线程{}，是否拿到锁：{} ",Thread.currentThread().getName(),isLock);
             if (isLock) {

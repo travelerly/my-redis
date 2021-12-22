@@ -29,6 +29,7 @@ public class JHSProductController {
     @RequestMapping(value = "/pruduct/findab" ,method = RequestMethod.GET)
     @ApiOperation("按照分页和每页显示容量，点击查看 AB")
     public List<Product> find(int page,int size){
+
         List<Product> list = null;
         long start = (page - 1 ) * size;
         long end = start + size - 1 ;
