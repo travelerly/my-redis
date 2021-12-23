@@ -909,7 +909,6 @@ if (len <= OBJ_ENCODING_EMBSTR_SIZE_LIMIT) {
 	return emb;
 }
 
-
 /* Create a string object with encoding OBJ_ENCODING_EMBSTR, that is
  * an object where the sds string is actually an unmodifiable string
  * allocated in the same chunk as the object itself. */
