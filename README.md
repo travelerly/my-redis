@@ -484,7 +484,7 @@ BITCOUNT temp
 
 #### HyperLogLog：统计
 
-Redis 在 2.8.9 版本中添加了 HyperLogLog 数据结构。Redis HyperLogLog 是用来做技术统计的算法，**HyperLogLog 的优点是，在输入元素的数量或体积非常非常大时，计算基数所需要的空间总是固定的、并且很小的。**
+Redis 在 2.8.9 版本中添加了 HyperLogLog 数据结构。Redis HyperLogLog 是用来做**基数**统计的算法，**HyperLogLog 的优点是，在输入元素的数量或体积非常非常大时，计算基数所需要的空间总是固定的、并且很小的。**
 
 在 Redis 中，每个 HyperLogLog 键只需要花费 12KB 的内存空间，就可以计算接近 2^64 个不同元素的基数。这和计算基数时，元素越多越耗费内存空间的集合形成鲜明的对比。但是，因为 HyperLogLog 只会根据输入的元素来计算基数，而不会存储输入的元素本身，所以 HyperLogLog 不能像集合那样，返回输入的各个元素。
 
@@ -1304,47 +1304,41 @@ Redis 底层实现 ZSet 的两种配置，可以通过 config get zset* 查询�
 
 <img src="img/Redis数据类型与数据结构之间的关系.jpg" style="zoom: 50%;" />
 
-###### 不同数据类型对应的底层数据结构
+###### 不同数据类型对应的底层编码格式
 
-- 字符串
+- string
 
-  > int:8个字节的长整型。
+  > int：8个字节的长整型。
   >
-  > embstr:小于等于44个字节的字符串。
+  > embstr：小于等于44个字节的字符串。
   >
-  > raw:大于44个字节的字符串。
+  > raw：大于44个字节的字符串。
   >
-  > Redis会根据当前值的类型和长度决定使用哪种内部编码实现。
+  > Redis 会根据当前值的类型和长度决定使用哪种内部编码实现。
 
-- 哈希
+- hash
 
-  > ziplist(压缩列表):当哈希类型元素个数小于hash-max-ziplist-entries 配置(默认512个)、同时所有值都小于hash-max-ziplist-value配置(默认64 字节)时，
+  > ziplist（压缩列表）：当哈希类型元素个数小于 hash-max-ziplist-entries 配置（默认 512 个）、同时所有值都小于 hash-max-ziplist-value 配置（默认64 字节）时，Redis 会使用 ziplist 作为哈希的内部实现，ziplist 使用更加紧凑的结构实现多个元素的连续存储，所以在节省内存方面比 hashtable 更加优秀。
   >
-  > Redis会使用ziplist作为哈希的内部实现，ziplist使用更加紧凑的 结构实现多个元素的连续存储，所以在节省内存方面比hashtable更加优秀。
-  >
-  > hashtable(哈希表):当哈希类型无法满足ziplist的条件时，Redis会使 用hashtable作为哈希的内部实现，因为此时ziplist的读写效率会下降，而hashtable的读写时间复杂度为O(1)。
+  > hashtable（哈希表）：当哈希类型无法满足 ziplist 的条件时，Redis 会使用 hashtable 作为哈希的内部实现，因为此时 ziplist 的读写效率会下降，而 hashtable 的读写时间复杂度为 O(1)。
+  
+- list
 
-- 列表
-
-  > ziplist(压缩列表):当列表的元素个数小于list-max-ziplist-entries配置 (默认512个)，同时列表中每个元素的值都小于list-max-ziplist-value配置时 (默认64字节)，
+  > ziplist（压缩列表）：当列表的元素个数小于 list-max-ziplist-entries 配置（默认 512 个），同时列表中每个元素的值都小于 list-max-ziplist-value 配置时（默认 64 字节），Redis 会选用 ziplist 来作为列表的内部实现来减少内存的使 用。
   >
-  > Redis会选用ziplist来作为列表的内部实现来减少内存的使 用。
-  >
-  > linkedlist(链表):当列表类型无法满足ziplist的条件时，Redis会使用 linkedlist作为列表的内部实现。quicklist ziplist和linkedlist的结合以ziplist为节点的链表(linkedlist)
+  > linkedlist（链表）：当列表类型无法满足 ziplist 的条件时，Redis 会使用 linkedlist 作为列表的内部实现。quicklist ziplist 和 linkedlist 的结合以 ziplist 为节点的链表（linkedlist）
+  
+- set
 
-- 集合
-
-  > intset(整数集合):当集合中的元素都是整数且元素个数小于set-max- intset-entries配置(默认512个)时，Redis会选用intset来作为集合的内部实现，从而减少内存的使用。
+  > intset（整数集合）：当集合中的元素都是整数且元素个数小于 set-max- intset-entries 配置（默认 512 个）时，Redis 会选用 intset 来作为集合的内部实现，从而减少内存的使用。
   >
-  > hashtable(哈希表):当集合类型无法满足intset的条件时，Redis会使用hashtable作为集合的内部实现。
+  > hashtable（哈希表）：当集合类型无法满足 intset 的条件时，Redis 会使用 hashtable 作为集合的内部实现。
 
-- 有序集合
+- zset
 
-  > ziplist(压缩列表):当有序集合的元素个数小于zset-max-ziplist- entries配置(默认128个)，同时每个元素的值都小于zset-max-ziplist-value配 置(默认64字节)时，
+  > ziplist（压缩列表）：当有序集合的元素个数小于 zset-max-ziplist- entries 配置（默认 128 个），同时每个元素的值都小于 zset-max-ziplist-value 配置（默认 64 字节）时，Redis 会用 ziplist 来作为有序集合的内部实现，ziplist 可以有效减少内存的使用。
   >
-  > Redis会用ziplist来作为有序集合的内部实现，ziplist 可以有效减少内存的使用。
-  >
-  > skiplist(跳跃表):当ziplist条件不满足时，有序集合会使用skiplist作 为内部实现，因为此时ziplist的读写效率会下降。
+  > skiplist（跳跃表）：当 ziplist 条件不满足时，有序集合会使用 skiplist 作为内部实现，因为此时 ziplist 的读写效率会下降。
 
 ###### redis 数据类型以及数据结构的时间复杂度
 
@@ -1520,7 +1514,7 @@ Redis 底层实现 ZSet 的两种配置，可以通过 config get zset* 查询�
 
 - 如果两个散列值是不相同的（根据同一个 hash 函数计算），那么这两个散列值的原始输入也是不相同的。这个特性是散列函数具有确定性的结果，具有这种性质的散列函数称为单向散列函数。
 - 散列函数的输入和输出不是唯一对应关系的，如果两个散列值此相同，两个输入值很可能是相同的，但也可能不同，这种情况称为散列碰撞（collision）
-- 用 hash 表存储大数据量时，空间效率还是很低，当只有一个 hash 函数时，还很容易繁盛哈希碰撞。
+- 用 hash 表存储大数据量时，空间效率还是很低，当只有一个 hash 函数时，还很容易发生哈希碰撞。
 
 <br>
 
@@ -1536,7 +1530,7 @@ Redis 底层实现 ZSet 的两种配置，可以通过 config get zset* 查询�
 
   <img src="img/布隆过滤器的添加操作.jpeg" style="zoom: 50%;" />
 
-- **查询 key 时：**向布隆过滤器查询某个 key 是否存在时，先把这个 key 通过相同的多个 hash 函数进行运算，查看位数组对应的位置是否都为 1，只要由其中一位是 0，就说明布隆过滤器中这个 key 不存在，但如果位数组对应的位置都是 1，则说明这个 key 极有可能存在于在布隆过滤器中。因为这些位置的 1 可能是因为其它的 key 存在导致的，也就是发生了哈希冲突。例如，在添加字符串“wmyskxz”数据之后，很明显位数组在下标为 1、3、5 这几个位置的 1 是因为第一次添加字符串“wmyskxz”而导致的；此时我们查询一个没有添加过的不存在的字符串“inexistent-key”，它有可能计算后的位数组的下标也分别为 1、3、5 这个几个位置，而这几个位置都是 1，这就发生了 hash 冲突，就发生了误判
+- **查询 key 时：**向布隆过滤器查询某个 key 是否存在时，先把这个 key 通过相同的多个 hash 函数进行运算，查看位数组对应的位置是否都为 1，只要其中有一个位置的值是 0，就说明布隆过滤器中这个 key 不存在，但如果位数组对应的位置都是 1，则说明这个 key 极有可能存在于在布隆过滤器中。因为这些位置的 1 可能是因为其它的 key 存在导致的，也就是发生了哈希冲突。例如，在添加字符串“wmyskxz”数据之后，很明显位数组在下标为 1、3、5 这几个位置的 1 是因为第一次添加字符串“wmyskxz”而导致的；此时我们查询一个没有添加过的不存在的字符串“inexistent-key”，它有可能计算后的位数组的下标也分别为 1、3、5 这个几个位置，而这几个位置都是 1，这就发生了 hash 冲突，就发生了误判
 
   <img src="img/布隆过滤器误判.jpeg" style="zoom: 50%;" />
 
@@ -1920,7 +1914,7 @@ Redisson 实现分布式锁：https://github.com/redisson/redisson/wiki/8.-Distr
 4. 如果取到了锁，其真正有效时间等于初始有效时间减去获取锁所使用的时间（步骤 3 计算的结果）；
 5. 如果由于某些原因未能获得锁（无法在至少 N/2 + 1 个 Redis 实例获取锁、或获取锁的时间超过了有效时间），客户端应该在所有的 Redis 实例上进行解锁（即便某些 Redis 实例根本就没有加锁成功，防止某些节点获取到锁但是客户端没有得到响应而导致接下来的一段时间不能被重新获取锁）。
 
-该方案为了解决数据不一致的问题，直接舍弃了异步复制只使用 master 节点，同时由于舍弃了 slave，为了保证可用性，引入了 N 个节点，官方建议是 5。本次演示用 3 台实例来做说明。
+该方案为了解决数据不一致的问题，直接舍弃了异步复制只使用 master 节点，同时由于舍弃了 slave，为了保证可用性，引入了 N 个节点，官方建议是 5。
 
 客户端只有在满足下面的这两个条件时，才能认为是加锁成功
 
@@ -1977,7 +1971,7 @@ public class WatchDogDemo {
 
 ##### 缓存续命
 
-Redis 分布式锁过期了，但是业务逻辑还没处理完，需要对锁进行续命。Redisson 的实现方案是，使用”看门狗“来定期检查（每 1/3 的锁时间检查一次），如果线程还持有锁，则刷新过期时间。即获取锁成功后，给锁加一个 watchdog，watchdog会另起一个定时任务，在锁没有被释放且快要过期的时候对锁进行续期。
+Redis 分布式锁过期了，但是业务逻辑还没处理完，需要对锁进行续命。Redisson 的实现方案是，使用”看门狗“来定期检查（每 1/3 的锁时间检查一次），如果线程还持有锁，则刷新过期时间。即获取锁成功后，给锁加一个 watchdog，watchdog 会另起一个定时任务，在锁没有被释放且快要过期的时候对锁进行续期。
 
 ```java
 // RedissonLock 在创建时，构造方法中定义锁的过期时间
@@ -2354,7 +2348,7 @@ MySQL的主从复制将经过如下步骤：
 >
 > 4 如果重试超过的一定次数后还是没有成功，我们就需要向业务层发送报错信息了，通知运维人员。
 >
-> <img src="img/先更新数据库再删除缓存解决方案.jpeg" style="zoom: 33%;" />
+> <img src="img/先更新数据库再删除缓存解决方案.jpeg" style="zoom: 50%;" />
 
 <br>
 
@@ -2456,7 +2450,7 @@ I/O 多路复用就是将用户socket 对应的**文件描述符**注册进 epol
 
 基于 I/O 复用模型：多个连接共用一个阻塞对象，应用程序只需要在一个阻塞对象上等待，无需阻塞等待所有连接。当某条连接有新的数据可以处理时，操作系统通知应用程序，线程从阻塞状态返回，开始进行业务处理。
 
-Reactor 模式，是指通过一个或多个输入同时传递给服务处理器的服务请求的事件驱动处理模式。服务端程序处理传入多路请求，并将它们同步分派给请求对应的处理线程，Reactor 模式也叫 Dispatcher 模式。即 I/O 多了复用统一监听事件，收到事件后分发(Dispatch 给某进程)，是编写高性能网络服务器的必备技术。
+Reactor 模式，是指通过一个或多个输入同时传递给服务处理器的服务请求的事件驱动处理模式。服务端程序处理传入多路请求，并将它们同步分派给请求对应的处理线程，Reactor 模式也叫 Dispatcher 模式。即 I/O 多路复用统一监听事件，收到事件后分发(Dispatch 给某进程)，是编写高性能网络服务器的必备技术。
 
 Reactor 模式中有 2 个关键组成
 
@@ -2467,7 +2461,7 @@ Reactor 模式中有 2 个关键组成
 
 #### Redis 的 I/O 多路复用
 
-Redis 利用 epoll 来实现 IO 多路复用，将连接信息和事件放到队列中，一次放到文件事件分派器，事件分派器将事件分发给事件处理器。
+Redis 利用 epoll 来实现 IO 多路复用，将连接信息和事件放到队列中，依次发放到文件事件分派器，事件分派器将事件分发给事件处理器。
 
 <img src="img/IO多路复用.jpg" style="zoom: 50%;" />
 
@@ -2617,7 +2611,7 @@ poll 解决了 select 缺点中的前两条，其本质原理还是 select 的�
 
 Linux 官网或 man 源码 （https://man7.org/linux/man-pages/man7/epoll.7.html）
 
-<img src="img/epoll1.jpeg" style="zoom: 50%;" />
+<img src="img/epoll1.jpeg" style="zoom: 40%;" />
 
 <img src="img/epoll2.jpeg" style="zoom: 50%;" />
 
