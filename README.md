@@ -20,11 +20,11 @@ Redis 的版本很多，版本不同架构也是不同的
 
 ##### Redis 单线程的理解
 
-Redis 的单线程主要是是指 Redis 的网络 IO 和键值对读写是由一个线程来完成的，Redis 在处理客户端的请求时包括获取 (socket 读)、解析、执行、内容返回 (socket 写) 等都由一个顺序串行的主线程处理，这就是所谓的“单线程”。这也是 Redis 对外提供键值存储服务的主要流程。
+**Redis 的单线程主要是是指 Redis 的网络 IO 和键值对读写是由一个线程来完成的**，Redis 在处理客户端的请求时包括获取 (socket 读)、解析、执行、内容返回 (socket 写) 等都由一个顺序串行的主线程处理，这就是所谓的 `单线程`。这也是 Redis 对外提供键值存储服务的主要流程。
 
 Redis 的其它功能，比如持久化、异步删除、集群数据同步等等，其实是由额外的线程执行的。
 
-Redis 的工作线程是单线程的，但是Redis 的整体是多线程的。
+**Redis 的工作线程是单线程的，但是Redis 的整体是多线程的。**
 
 <img src="img/Redis处理客户端请求的操作.jpg" style="zoom: 33%;" />
 
@@ -34,7 +34,7 @@ Redis 的工作线程是单线程的，但是Redis 的整体是多线程的。
 
 - 基于内存操作：Redis 的所有数据都存在内存中，因此所有的运算都是内存级别的，所以他的性能比较高；
 - 数据结构简单：Redis 的数据结构是专门设计的，而这些简单的数据结构的查找和操作的时间大部分复杂度都是 O(1)，因此性能比较高；
-- 多路复用和非阻塞 I/O：Redis使用 I/O 多路复用功能来监听多个 socket 连接客户端，这样就可以使用一个线程连接来处理多个请求，减少线程切换带来的开销，同时也避免了 I/O 阻塞操作；
+- 多路复用和非阻塞 I/O：Redis使用 I/O 多路复用功能来监听多个 socket 连接的客户端，这样就可以使用一个线程连接来处理多个请求，减少线程切换带来的开销，同时也避免了 I/O 阻塞操作；
 - 避免上下文切换：因为是单线程模型，因此就避免了不必要的上下文切换和多线程竞争，这就省去了多线程切换带来的时间和性能上的消耗，而且单线程不会导致死锁问题的发生。
 
 > 官网关于 Redis 单线程高性能的解释：https://redis.io/topics/faq
@@ -45,7 +45,7 @@ Redis 的工作线程是单线程的，但是Redis 的整体是多线程的。
 >
 > 1. 使用单线程模型是 Redis 的开发和维护更简单，因为单线程模型方便开发和调试；
 > 2. 即使使用单线程模型也能并发的处理多客户端的请求，主要使用的是多路复用和非阻塞 IO；
-> 3. 对于 Redis 系统来说，主要的性能瓶颈是内存或者网络带宽而并非 CPU。
+> 3. 对于 Redis 系统来说，主要的性能瓶颈是内存或者网络带宽，并非是 CPU。
 
 <br>
 
@@ -69,7 +69,7 @@ Redis 的工作线程是单线程的，但是Redis 的整体是多线程的。
 
 > 比如当 Redis 需要删除一个很大的数据时，因为是单线程同步操作，这就会导致 Redis 服务卡顿，于是在 Redis 4.0 中就新增了多线程的模块，当然此版本中的多线程主要是为了解决删除数据效率比较低的问题的。例如把删除工作交给了后台的子线程来异步删除数据了。
 >
-> 因为 Redis 是单个主线程处理，redis 之父 antirez 一直强调 "Lazy Redis is better Redis"。而 lazy free 的本质就是把某些 cost(主要时间复杂度，占用主线程 cpu 时间片) 较高的删除操作，从 redis 主线程剥离让 bio 子线程来处理，极大地减少主线阻塞时间。从而减少删除导致性能和稳定性问题。
+> 因为 Redis 是单个主线程处理，redis 之父 antirez 一直强调 "Lazy Redis is better Redis"。而 lazy free 的本质就是把某些 cost(主要时间复杂度，占用主线程 cpu 时间片) 较高的删除操作，从 redis 主线程剥离，让子线程来处理，极大地减少主线阻塞时间。从而减少删除导致性能和稳定性问题。
 
 <br>
 
@@ -87,14 +87,14 @@ Redis 的工作线程是单线程的，但是Redis 的整体是多线程的。
 >
 > **多路**：指的是多个socket连接；
 >
-> **复用**：指的是复用一个线程。多路复用主要有三种技术：select，poll，epoll。epoll 是最新的也是目前最好的多路复用技术。采用多路 I/O 复用技术可以让单个线程高效的处理多个连接请求（尽量减少网络 I/O 的时间消耗），且 Redis 在内存中操作数据的速度非常快（内存内的操作不会成为这里的性能瓶颈），主要以上两点造就了 Redis具有很高的吞吐量。
+> **复用**：指的是复用一个线程。多路复用主要有三种技术：select，poll，epoll。epoll 是最新的也是目前最好的多路复用技术。采用多路 I/O 复用技术可以让单个线程高效的处理多个连接的请求（尽量减少网络 I/O 的时间消耗），且 Redis 在内存中操作数据的速度非常快（内存内的操作不会成为这里的性能瓶颈），主要以上两点造就了 Redis具有很高的吞吐量。
 
 <br>
 
 ##### Redis 的I/O 多路复用
 
 - I/O 的读和写本身是堵塞的，比如当 socket 中有数据时，Redis 会通过调用，先将数据从内核态空间拷贝到用户态空间，再交给 Redis 调用，而这个拷贝的过程就是阻塞的，当数据量越大时拷贝所需要的时间就越多，而这些操作都是基于单线程完成的。
-- 在 Redis 6.0 中新增了多线程的功能来提高 I/O 的读写性能，他的主要实现思路是将主线程的  I/O  读写任务拆分给一组独立的线程去执行，这样就可以使多个 socket 的读写可以并行化了，采用多路 I/O 复用技术可以让单个线程高效的处理多个连接请求（尽量减少网络 I/O 的时间消耗），将最耗时的 Socket 的读取、请求解析、写入单独外包出去，剩下的命令执行仍然由主线程串行执行并和内存的数据交互；
+- 在 Redis 6.0 中新增了多线程的功能来提高 I/O 的读写性能，他的主要实现思路是将主线程的  I/O  读写任务拆分给一组独立的线程去执行，这样就可以使多个 socket 的读写可以并行化了，采用多路 I/O 复用技术可以让单个线程高效的处理多个连接的请求（尽量减少网络 I/O 的时间消耗），将最耗时的 Socket 的读取、请求解析、写入单独外包出去，剩下的命令执行仍然由主线程串行执行并和内存的数据交互；
 - 即 Redis 6.0 中，多个 I/O 线程解决网络 I/O 问题（多线程的红利），单个工作线程（主线程）保证线程安全（单线程的红利）。
 
 <img src="img/Redis处理客户端请求的操作.jpg" style="zoom: 33%;" />
@@ -117,6 +117,19 @@ io-threads-do-reads yes
 ---
 
 ### Redis 的数据类型
+
+#### Redis 的几种数据类型
+
+- string：字符串类型
+- hash：散列类型
+- list：列表类型
+- set：集合类型
+- zset：有序集合类型
+- bitmap：位图类型
+- hyperloglog：统计类型
+- geo：地理类型
+
+<br>
 
 #### string：字符串类型
 
@@ -153,7 +166,7 @@ set key value [EX seconds] [PX milliseconds] [NX|XX]
 
 ##### 应用场景
 
-- 点赞某个商品或视频，点击以下加一次
+- 点赞某个商品或视频，点击一下加一次
 - 统计文章的阅读数，点击地址，累计加一
 
 <br>
@@ -313,7 +326,7 @@ SUNION key [key ...]
 
 - colin 和 lee 两个人的关注数据：`sadd colin 郜林 郑智 梅西 小罗 温格`、`sadd lee 温格 小罗 内马尔 姆巴佩 哈兰德`
 - lee 可能认识的人：`SDIFF colin lee`
-- colin 可能认识的人：`SDIFF lee coliin`
+- colin 可能认识的人：`SDIFF lee colin`
 
 <br>
 
@@ -375,7 +388,7 @@ ZREVRANK key member
 
 ##### 聚合统计
 
-- 统计多个集合元素的聚合结果，就是前面讲解过的交差并等集合统计
+- 统计多个集合元素的聚合结果，例如交、差、并等集合统计
 - 交并差集和聚合函数的应用
 
 ##### 排序统计
@@ -409,7 +422,9 @@ ZREVRANK key member
 
 ##### bitmap 是什么
 
-用 string 类型作为底层数据结构实现的一种统计二值状态的数据类型。由 0 和 1 状态表现的二进制位的 bit 数组。位图本质是数组，它是基于 string 数据类型的按位的操作。该数组由多个二进制位组成，每个二进制位都对应一个偏移量(我们可以称之为一个索引或者位格)。Bitmap 支持的最大位数是 2^32 位，它可以极大的节约存储空间，使用 512M 内存就可以存储多大 42.9 亿的字节信息(2^32 = 4294967296)。
+<img src="img/bitmap.jpg" style="zoom: 25%;" />
+
+**用 string 类型作为底层数据结构实现的一种统计二值状态的数据类型**。由 0 和 1 状态表现的二进制位的 bit 数组。**位图本质是数组，它是基于 string 数据类型的按位的操作**。该数组由多个二进制位组成，每个二进制位都对应一个偏移量(我们可以称之为一个索引或者位格)。Bitmap 支持的最大位数是 2^32 位，它可以极大的节约存储空间，使用 512M 内存就可以存储多大 42.9 亿的字节信息(2^32 = 4294967296)。
 
 <br>
 
@@ -458,6 +473,8 @@ bitop operation destkey key [key ...]
 
 使用 Redis 的 bitmap 实现签到日历需求。在签到统计时，每个用户一天的签到用 1 个 bit 位就能表示，一个月的签到情况用 31 个 bit 位就能表示，一年的签到也只需要 365 个 bit 位表示，不需要太复杂的集合类型。
 
+<img src="img/连续签到日期统计.jpg" style="zoom: 25%;" />
+
 ```sh
 # colin 一周内签到的数据
 SETBIT colin 1 1
@@ -488,7 +505,7 @@ Redis 在 2.8.9 版本中添加了 HyperLogLog 数据结构。Redis HyperLogLog 
 
 在 Redis 中，每个 HyperLogLog 键只需要花费 12KB 的内存空间，就可以计算接近 2^64 个不同元素的基数。这和计算基数时，元素越多越耗费内存空间的集合形成鲜明的对比。但是，因为 HyperLogLog 只会根据输入的元素来计算基数，而不会存储输入的元素本身，所以 HyperLogLog 不能像集合那样，返回输入的各个元素。
 
-> 基数：是一种数据集，去重复后的真实**个数**。例如：集合 = {2,4,6,8,77,39,4,8,10}，去掉重复的内容后，基数 = {2,4,6,8,77,39,10} = 7 个。
+> 基数：是一种数据集，去重复后的元素的真实**个数**。例如：集合 = {2,4,6,8,77,39,4,8,10}，去掉重复的内容后，基数 = {2,4,6,8,77,39,10} = 7 个。
 >
 > 基数统计：用于统计一个集合中不重复的元素个数，就是对集合去重复后剩余元素的计算。即去重后的真实数据。
 
@@ -497,7 +514,7 @@ Redis 在 2.8.9 版本中添加了 HyperLogLog 数据结构。Redis HyperLogLog 
 几个名词：
 
 - UV：Unique Visitor，独立访客，一般理解为客户端 IP
-- PV：Page View，页面浏览量。（不用去重）
+- PV：Page View，页面浏览量，不用去重。
 - DAU：Daily Active User，日活跃用户量。登录或者使用了某个产品的用户数量，需要去除重复登录的用户。常用于反映网站、互联网应用或者网络游戏的运营情况。
 - MAU：Monthly Active User，月活跃用户量
 
@@ -505,7 +522,7 @@ Redis 在 2.8.9 版本中添加了 HyperLogLog 数据结构。Redis HyperLogLog 
 
 使用 HyperLogLog 来解决以下几个需求
 
-- 统计某个网站的UV、统计某个文章的UV
+- 统计某个网站的 UV、统计某个文章的 UV
 - 用户搜索网站关键词的数量
 - 统计用户每天搜索不同词条个数
 
@@ -513,7 +530,7 @@ Redis 在 2.8.9 版本中添加了 HyperLogLog 数据结构。Redis HyperLogLog 
 
 HyperLogLog 的原理说明：
 
-- 只是进行不重复的基数统计，不是集合也不保存数据，只记录数量而不是具体内容
+- 只是进行不重复的基数统计，不是集合，也不保存数据，只记录数量，而不是具体内容
 - 存在误差，是非精确统计，但误差仅仅只是 0.81% 左右，属于是牺牲准确率来换取空间。Redis 作者对于误差的说明：http://antirez.com/news/75
 
 > 由此引出经典面试题：为什么redis集群的最大槽数是16384个？
@@ -530,7 +547,7 @@ HyperLogLog 的原理说明：
 >
 > 可以理解为：
 >
-> - 如果槽位为 65536，发送心跳信息的消息头达 8k，发送的心跳包过于庞大。在消息头中最占空间的是 myslots[CLUSTER_SLOTS/8]。 当槽位为 65536时，这块的大小是: 65536÷8÷1024=8kb。因为每秒钟，redis 节点需要发送一定数量的 ping 消息作为心跳包，如果槽位为 65536，这个 ping 消息的消息头太大了，浪费带宽。
+> - 如果槽位为 65536，发送心跳信息的消息头达 8k，**发送的心跳包过于庞大**。在消息头中最占空间的是 myslots[CLUSTER_SLOTS/8]。 当槽位为 65536 时，这块的大小是: 65536÷8÷1024=8kb。因为每秒钟，redis 节点需要发送一定数量的 ping 消息作为心跳包，如果槽位为 65536，这个 ping 消息的消息头太大了，浪费带宽。
 > - redis 的集群主节点数量基本不可能超过 1000个。集群节点越多，心跳包的消息体内携带的数据越多。如果节点过 1000个，也会导致网络拥堵。因此 redis 作者不建议redis cluster 节点数量超过 1000个。 那么，对于节点数在 1000 以内的 redis cluster 集群，16384 个槽位够用了。没有必要拓展到 65536 个。
 > - 槽位越小，节点越少的情况下，压缩比高，容易传输。Redis 主节点的配置信息中，它所负责的哈希槽是通过一张 bitmap 的形式来保存的，在传输过程中会对 bitmap 进行压缩，但是如果 bitmap 的填充率 slots/N 很高的话(N 表示节点数)，bitmap 的压缩率就很低。 即节点数很少，而哈希槽数量很多的话，bitmap 的压缩率就很低。 
 
@@ -569,9 +586,9 @@ PFCOUNT temp
 
 使用案例
 
-天猫网站首页亿级UV的Redis统计方案
+天猫网站首页亿级 UV 的 Redis 统计方案
 
-需求说明：UV 的统计需要去重，一个用户一天内的多次访问只能算作一次。淘宝、天猫首页的UV，平均每天是1~1.5个亿左右。每天存1.5个亿的IP，访问者来了后先去查是否存在，不存在加入。
+需求说明：UV 的统计需要去重，一个用户一天内的多次访问只能算作一次。淘宝、天猫首页的 UV，平均每天是 1~1.5 亿左右。每天存 1.5 亿的 IP，访问者来了后先去查是否存在，不存在加入。
 
 <br>
 
@@ -586,17 +603,22 @@ Redis 在 3.2 版本以后增加了地理位置的处理。
 ```sh
 # 添加地理位置的坐标。longitude：经度；latitude：维度；member：位置名称
 GEOADD key longitude latitude member [longitude latitude member ...]
+
 # 获取地理位置的坐标
 GEOPOS key member [member ...]
+
 # 计算两个位置之间的距离。可设定单位
 GEODIST key member1 member2 [m|km|ft|mi]
+
 # 根据用户给定的经纬度坐标来获取指定范围内的地理位置集合。以半径为中心来查找数据。
 # radius：半径；WITHDIST：在返回位置元素的同时，将位置元素与中心之间的距离也一并返回；WITHCOORD：将位置元素的经度和维度也一并返回；
 # WITHHASH：以 52 位有符号整数的形式，返回位置元素经过原始 geohash 编码的有序集合分值。这个选项主要用于底层应用或者调试，实际中的作用并不大；
 # COUNT：限定返回的记录数；ASC：查找结果根据距离从近到远排序；DESC：查找结果根据从远到近排序。
 GEORADIUS key longitude latitude radius m|km|ft|mi [WITHCOORD] [WITHDIST] [WITHHASH] [COUNT count] [ASC|DESC] [STORE key] [STOREDIST key]
+
 # 根据储存在位置集合里面的某个地点获取指定范围内的地理位置集合
 GEORADIUSBYMEMBER key member radius m|km|ft|mi [WITHCOORD] [WITHDIST] [WITHHASH] [COUNT count] [ASC|DESC] [STORE key] [STOREDIST key]
+
 # 返回一个或多个位置对象的 geohash 值
 GEOHASH key member [member ...]
 ```
@@ -699,11 +721,11 @@ typedef struct redisObject {
 } robj;
 ```
 
-> Redis 采用 redisObjec 结构来统一五种不同的数据类型，这样所有的数据类型就都可以以相同的形式在函数间传递而不用使用特定的类型结构。同时，为了识别不同的数据类型，redisObjec 中定义了 type 和 encoding 字段对不同的数据类型加以区别。简单地说，redisObject 就是 string、hash、list、set、zset 的父类，可以在函数间传递时隐藏具体的类型信息，所以作者抽象了 redisObjec 结构来到达同样的目的。
+> Redis 采用 redisObjec 结构来统一五种不同的数据类型，这样所有的数据类型就都可以以相同的形式在函数间传递，而不用使用特定的类型结构。同时，为了识别不同的数据类型，redisObjec 中定义了 type 和 encoding 字段，对不同的数据类型加以区别。简单地说，redisObject 就是 string、hash、list、set、zset 的父类，可以在函数间传递时隐藏具体的类型信息，所以作者抽象了 redisObjec 结构来到达同样的目的。
 >
-> -  位的 type 表示具体的数据类型
+> -  4 位的 type 表示具体的数据类型，包括 OBJ_STRING、OBJ_LIST、OBJ_HASH、OBJ_SET、OBJ_ZSET
 >
-> - 4 位的 encoding 表示该类型的物理编码方式，同一种数据类型可能有不同的编码方式，比如 string 提供了三种，int、embstr、raw
+> - 4 位的 encoding 表示该类型的物理编码方式，**同一种数据类型可能有不同的编码方式**，比如 string 提供了三种，int、embstr、raw
 > - lru 字段表示当内存超限时，采用 LRU 算法清除内存中的对象
 > - refcount 表示对象的引用计数
 > - ptr指针指向真正的底层数据结构的指针。
@@ -716,9 +738,9 @@ typedef struct redisObject {
 
 #### Redis 数据类型底层结构源码分析
 
-以 set hello word 为例，Redis 是 k-v 键值对的数据库，每个键值对都会有一个 dictEntry（源码位置：dict.h），里面指向了 key 和 value 的指针，next 指向下一个 dictEntry。
+以 `set hello word` 为例，Redis 是 k-v 键值对的数据库，每个键值对都会有一个 dictEntry（源码位置：dict.h），里面指向了 key 和 value 的指针，next 指向下一个 dictEntry。
 
-key 是字符串，当 Redis 没有直接使用 C 语言中的字符数组，而是存储在 redis 自定义的 SDS 中。
+key 是字符串，Redis 没有直接使用 C 语言中的字符数组，而是存储在 redis 自定义的 SDS 中。
 
 value 既不是直接作为字符串存储，也不是直接存储在 SDS 中，而是存储在 redisObject 中。
 
@@ -736,7 +758,7 @@ value 既不是直接作为字符串存储，也不是直接存储在 SDS 中，
 
 ###### string 类型的三大编码格式
 
-- int：保存 long 型（长整型）的 64 位（8 个字节）有符号整数。
+- int：保存 long 型（长整型）的 64 位（8 个字节）有符号整数；
 
   > long 数据类型是 64 位、有符号的以二进制补码表示的整数，这种类型主要使用在比较大整数的系统上，默认值是 0L
   >
@@ -748,9 +770,9 @@ value 既不是直接作为字符串存储，也不是直接存储在 SDS 中，
   >
   > 只有整数才会使用 int，如果是浮点数， Redis 内部其实先将浮点数转化为字符串值，然后再保存
 
-- embstr：EMBSTR 顾名思义即：embedded string，表示嵌入式的String。代表 embstr 格式的 SDS（Simple Dynamic String 简单动态字符串），保存长度小于 44 个字节的字符串。
+- embstr：EMBSTR 顾名思义即：embedded string，表示嵌入式的 String。代表 embstr 格式的 SDS（Simple Dynamic String 简单动态字符串），保存长度小于 44 个字节的字符串；
 
-- raw：保存长度大于44字节的字符串
+- raw：保存长度大于44字节的字符串。
 
 ###### string 类型的三大编码案例
 
@@ -791,7 +813,7 @@ localhost:1>OBJECT encoding k1
 
 ###### SDS
 
-Redis 没有直接复用 C 语言的字符数组，而是新建了属于自己的结构，SDS。在 Redis 数据库里，包含字符串值的键值对都是由 SDS 实现的。Redis 中所有的键都是由字符串对象实现的即底层是由 SDS 实现，Redis 中所有的值对象中包含的字符串对象底层也是由 SDS 实现。
+Redis 没有直接复用 C 语言的字符数组，而是新建了属于自己的结构，SDS。在 Redis 数据库里，包含字符串值的键值对都是由 SDS 实现的。Redis 中所有的键都是由字符串对象实现的，即底层是由 SDS 实现，Redis 中所有的值对象中包含的字符串对象底层也是由 SDS 实现。
 
 <img src="img/SDS.jpeg" style="zoom: 67%;" />
 
@@ -813,9 +835,9 @@ Redis 中字符串的实现，SDS有多种结构：
 - sdshdr32：2 ^ 32 byte = 4 GB
 - sdshdr64：2^64 byte  ＝17179869184G，用于存储不同的长度的字符串。
 
-Redis为什么重新设计一个 SDS 数据结构？
+Redis 为什么重新设计一个 SDS 数据结构？
 
-C 语言没有 Java 里面的 String 类型，只能是靠自己的 char[] 来实现，字符串在 C 语言中的存储方式，想要获取 Redis 的长度，需要从头开始遍历，直到遇到 '\0' 为止。所以，Redis 没有直接使用 C 语言传统的字符串标识，而是自己构建了一种名为简单动态字符串 SDS（simple dynamic string）的抽象类型，并将 SDS 作为 Redis 的默认字符串。
+C 语言没有 Java 里面的 String 类型，只能是靠自己的 char[] 来实现，字符串在 C 语言中的存储方式，想要获取 Redis 的长度，需要从头开始遍历，直到遇到 `\0` 为止。所以，Redis 没有直接使用 C 语言传统的字符串标识，而是自己构建了一种名为简单动态字符串 SDS（simple dynamic string）的抽象类型，并将 SDS 作为 Redis 的默认字符串。
 
 <table>
   <tr align="center">
@@ -838,10 +860,13 @@ C 语言没有 Java 里面的 String 类型，只能是靠自己的 char[] 来�
   </tr>
   <tr>
   	<td>二进制安全</td>
-    <td>二进制数据并不是规则的字符串格式，可能会包含一些特殊的字符，比如 '\0' 等。前面提到过，C中字符串遇到 '\0' 会结束，那 '\0' 之后的数据就读取不上了</td>
+    <td>二进制数据并不是规则的字符串格式，可能会包含一些特殊的字符，比如 '\0' 等。前面提到过，C 语言中字符串遇到 '\0' 会结束，那 '\0' 之后的数据就读取不上了</td>
     <td>根据 len 长度来判断字符串结束的，二进制安全的问题就解决了</td>
   </tr>
 </table>
+
+<br>
+
 ###### set key value 源码
 
 **INT 编码格式：**
@@ -850,20 +875,15 @@ C 语言没有 Java 里面的 String 类型，只能是靠自己的 char[] 来�
 
 <img src="img/INT编码格式.jpeg" style="zoom: 50%;" />
 
-Redis 启动时会预先建立 10000 个分别存储 0~9999 的 redisObject 变量作为共享对象，这就意味着如果 set字符串的键值在 0~10000 之间的话，则可以 **直接指向共享对象 而不需要再建立新对象，此时键值不占空间！**
+Redis 启动时会预先建立 10000 个分别存储 0~9999 的 redisObject 变量，作为共享对象，这就意味着如果 set 字符串的键值在 0~10000 之间的话，则可以**直接指向共享对象，而不需要再建立新对象，此时键值不占空间！**
 
 ```c
 # object.c 源码
-/* Check if we can represent this string as a long integer.
- * Note that we are sure that a string larger than 20 chars is not
- * representable as a 32 nor 64 bit integer. */
+
 len = sdslen(s);
 # 字符串长度小于等于 20，且字符串转成 long 类型成功
 if (len <= 20 && string2l(s,len,&value)) {
-	/* This object is encodable as a long. Try to use a shared object.
-	 * Note that we avoid using shared integers when maxmemory is used
-	 * because every object needs to have a private LRU field for the LRU
-	 * algorithm to work well. */
+
 	if ((server.maxmemory == 0 ||
 		!(server.maxmemory_policy & MAXMEMORY_FLAG_NO_SHARED_INTEGERS)) &&
 		value >= 0 &&
@@ -889,16 +909,13 @@ if (len <= 20 && string2l(s,len,&value)) {
 
 **EMBSTR 编码格式：**
 
-对于长度小于 44 的字符串，Redis 对键值采用 OBJ_ENCODING_EMBSTR 方式，EMBSTR 顾名思义即：embedded string，表示嵌入式的 String。从内存结构上来讲，即字符串 sds结构体与其对应的 redisObject 对象分配在同一块连续的内存空间，字符串 sds 嵌入在 redisObject 对象之中一样。
+对于长度小于 44 的字符串，Redis 对键值采用 OBJ_ENCODING_EMBSTR 方式，EMBSTR 顾名思义即：embedded string，表示嵌入式的 string。从内存结构上来讲，即字符串 sds 结构体与其对应的 redisObject 对象分配在同一块连续的内存空间，字符串 sds 嵌入在 redisObject 对象之中一样。
 
 <img src="img/EMBSTR编码格式.jpeg" style="zoom: 50%;" />
 
 ```c
 # object.c 源码
-/* If the string is small and is still RAW encoded,
- * try the EMBSTR encoding which is more efficient.
- * In this representation the object and the SDS string are allocated
- * in the same chunk of memory to save space and cache misses. */
+
 # 字符串长度小于 44 的字符串。【#define OBJ_ENCODING_EMBSTR_SIZE_LIMIT 44】
 if (len <= OBJ_ENCODING_EMBSTR_SIZE_LIMIT) {
 	robj *emb;
@@ -909,9 +926,6 @@ if (len <= OBJ_ENCODING_EMBSTR_SIZE_LIMIT) {
 	return emb;
 }
 
-/* Create a string object with encoding OBJ_ENCODING_EMBSTR, that is
- * an object where the sds string is actually an unmodifiable string
- * allocated in the same chunk as the object itself. */
 # 将字符串转成 OBJ_ENCODING_EMBSTR 编码格式
 robj *createEmbeddedStringObject(const char *ptr, size_t len) {
     robj *o = zmalloc(sizeof(robj)+sizeof(struct sdshdr8)+len+1);
@@ -950,12 +964,7 @@ robj *createEmbeddedStringObject(const char *ptr, size_t len) {
 
 ```c
 # object.c 源码
-/* Create a string object with EMBSTR encoding if it is smaller than
- * OBJ_ENCODING_EMBSTR_SIZE_LIMIT, otherwise the RAW encoding is
- * used.
- *
- * The current limit of 44 is chosen so that the biggest string object
- * we allocate as EMBSTR will still fit into the 64 byte arena of jemalloc. */
+
 #define OBJ_ENCODING_EMBSTR_SIZE_LIMIT 44
 robj *createStringObject(const char *ptr, size_t len) {
     if (len <= OBJ_ENCODING_EMBSTR_SIZE_LIMIT)
@@ -981,7 +990,7 @@ Redis 内部会根据用户给的不同键值而使用不同的编码格式，�
 | ------ | ------------------------------------------------------------ |
 | INT    | Long 类型整数时，RedisObject 中的 ptr 指针直接赋值为整数数据，不再额外的指针再指向整数了，节省了指针的空间开销。 |
 | EMBSTR | 当保存的是字符串数据且字符串小于等于 44 字节时，embstr 类型将会调用内存分配函数，只分配一块连续的内存空间，空间中依次包含 redisObject 与 sdshdr 两个数据结构，让元数据、指针和 SDS 是一块连续的内存区域，这样就可以避免内存碎片 |
-| RAW    | 当字符串大于 44 字节时，SDS 的数据量变多变大了，SDS 和 RedisObject 布局分家各自过，会给 SDS 分配多的空间并用指针指向 SDS 结构，raw 类型将会调用两次内存分配函数，分配两块内存空间，一块用于包含 redisObject 结构，而另一块用于包含 sdshdr 结构 |
+| RAW    | 当字符串大于 44 字节时，SDS 的数据量变多变大了，SDS 和 RedisObject 布局分家各自过，会给 SDS 分配更多的空间并用指针指向 SDS 结构，raw 类型将会调用两次内存分配函数，分配两块内存空间，一块用于包含 redisObject 结构，而另一块用于包含 sdshdr 结构 |
 
 <img src="img/string三种结构.jpeg" style="zoom: 50%;" />
 
@@ -991,11 +1000,11 @@ Redis 内部会根据用户给的不同键值而使用不同的编码格式，�
 
 ###### hash 的两种编码格式
 
-- **ziplist**：ziplist 是一个经过特殊编码的双向链表，它不存储指向上一个链表节点和指向下一个链表节点的指针，而是存储上一个节点长度和当前节点长度，通过牺牲部分读写性能，来换取高效的内存空间利用率，节约内存，是一种时间换空间的思想。只用在字段个数少，字段值小的场景里面
+- **ziplist**
 
-  
+- **hashtable**
 
-- hashtable
+<br>
 
 ###### ziplist 源码分析
 
@@ -1030,7 +1039,7 @@ typedef struct zlentry {
 
 ###### hashtable 源码分析
 
-在 Redis 中，hashtable 被称为字典（dictionary），它是一个数组+链表的结构。
+在 Redis 中，hashtable 被称为字典（dictionary），它是一个数组 + 链表的结构。
 
 ```c
 # t_hash.c 源码
@@ -1092,8 +1101,6 @@ typedef struct dictType {
     int (*expandAllowed)(size_t moreMem, double usedRatio);
 } dictType;
 
-/* This is our hash table structure. Every dictionary has two of this as we
- * implement incremental rehashing, for the old to the new table. */
 # dictht：哈希表
 typedef struct dictht {
     dictEntry **table;
@@ -1160,11 +1167,11 @@ ziplist 的两种压缩配置。通过 `config get list*` 可以查看。
   >
   > - 0: 是个特殊值，表示都不压缩。这是Redis的默认值。
   >
-  > - 1: 表示quicklist两端各有1个节点不压缩，中间的节点压缩。
+  > - 1: 表示 quicklist 两端各有 1 个节点不压缩，中间的节点压缩。
   >
-  > - 2: 表示quicklist两端各有2个节点不压缩，中间的节点压缩。
+  > - 2: 表示 quicklist 两端各有 2 个节点不压缩，中间的节点压缩。
   >
-  > - 3: 表示quicklist两端各有3个节点不压缩，中间的节点压缩。
+  > - 3: 表示 quicklist 两端各有 3 个节点不压缩，中间的节点压缩。
 
 - list-max-ziplist-size
 
@@ -1172,7 +1179,7 @@ ziplist 的两种压缩配置。通过 `config get list*` 可以查看。
 
   > 每个值含义如下:
   >
-  > - -5: 每个 quicklis t节点上的 ziplist 大小不能超过 64 Kb。（注：1kb => 1024 bytes）
+  > - -5: 每个 quicklist 节点上的 ziplist 大小不能超过 64 Kb。（注：1kb => 1024 bytes）
   >- -4: 每个 quicklist 节点上的 ziplist 大小不能超过 32 Kb。
   > - -3: 每个 quicklist 节点上的 ziplist 大小不能超过 16 Kb。
   >- -2: 每个 quicklist 节点上的 ziplist 大小不能超过 8 Kb。（-2是Redis给出的默认值）
@@ -1181,28 +1188,28 @@ ziplist 的两种压缩配置。通过 `config get list*` 可以查看。
 ```c
 # quicklist.h 源码
 typedef struct quicklist {
-    quicklistNode *head;				/* 指向双向列表的表头 */
-    quicklistNode *tail;				/* 指向双向列表的表尾 */
-    unsigned long count;        /* 所有 ziplist 中一共存了多少个元素 */
-    unsigned long len;          /* 双向链表的长度，node 的数量 */
-    int fill : QL_FILL_BITS;              /* fill factor for individual nodes */
-    unsigned int compress : QL_COMP_BITS; /* 压缩深度，0：不压缩 */
+    quicklistNode *head;					/* 指向双向列表的表头 */
+    quicklistNode *tail;					/* 指向双向列表的表尾 */
+    unsigned long count;        			/* 所有 ziplist 中一共存了多少个元素 */
+    unsigned long len;          			/* 双向链表的长度，node 的数量 */
+    int fill : QL_FILL_BITS;    			/* fill factor for individual nodes */
+    unsigned int compress : QL_COMP_BITS; 	/* 压缩深度，0：不压缩 */
     unsigned int bookmark_count: QL_BM_BITS;
     quicklistBookmark bookmarks[];
 } quicklist;
 
 
 typedef struct quicklistNode {
-    struct quicklistNode *prev;	 /* 前一个节点 */
-    struct quicklistNode *next;	 /* 后一个节点 */
-    unsigned char *zl;					 /* 指向实际的 ziplist */
-    unsigned int sz;             /* 当前 ziplist 占用多少字节 */
-    unsigned int count : 16;     /* 当前 ziplist 中存储了多少个元素，占 16bit，最大 65536 个 */
-    unsigned int encoding : 2;   /* 是否采用了 LZF 压缩算法压缩节点，RAW==1 or LZF==2 */
-    unsigned int container : 2;  /* NONE==1 or ZIPLIST==2。未来可能支持其它结构存储 */
-    unsigned int recompress : 1; /* 当前 ziplist 是不是已经被解压出来作临时使用 */
-    unsigned int attempted_compress : 1; /* 测试用 */
-    unsigned int extra : 10; /* 预留给未来使用 */
+    struct quicklistNode *prev;	 			/* 前一个节点 */
+    struct quicklistNode *next;	 			/* 后一个节点 */
+    unsigned char *zl;			 			/* 指向实际的 ziplist */
+    unsigned int sz;             			/* 当前 ziplist 占用多少字节 */
+    unsigned int count : 16;     			/* 当前 ziplist 中存储了多少个元素，占 16bit，最大 65536 个 */
+    unsigned int encoding : 2;   			/* 是否采用了 LZF 压缩算法压缩节点，RAW==1 or LZF==2 */
+    unsigned int container : 2;  			/* NONE==1 or ZIPLIST==2。未来可能支持其它结构存储 */
+    unsigned int recompress : 1; 			/* 当前 ziplist 是不是已经被解压出来作临时使用 */
+    unsigned int attempted_compress : 1; 	/* 测试用 */
+    unsigned int extra : 10; 	 			/* 预留给未来使用 */
 } quicklistNode;
 ```
 
@@ -1310,9 +1317,9 @@ Redis 底层实现 ZSet 的两种配置，可以通过 config get zset* 查询�
 
   > int：8个字节的长整型。
   >
-  > embstr：小于等于44个字节的字符串。
+  > embstr：小于等于 44 个字节的字符串。
   >
-  > raw：大于44个字节的字符串。
+  > raw：大于 44 个字节的字符串。
   >
   > Redis 会根据当前值的类型和长度决定使用哪种内部编码实现。
 
@@ -1326,7 +1333,7 @@ Redis 底层实现 ZSet 的两种配置，可以通过 config get zset* 查询�
 
   > ziplist（压缩列表）：当列表的元素个数小于 list-max-ziplist-entries 配置（默认 512 个），同时列表中每个元素的值都小于 list-max-ziplist-value 配置时（默认 64 字节），Redis 会选用 ziplist 来作为列表的内部实现来减少内存的使 用。
   >
-  > linkedlist（链表）：当列表类型无法满足 ziplist 的条件时，Redis 会使用 linkedlist 作为列表的内部实现。quicklist ziplist 和 linkedlist 的结合以 ziplist 为节点的链表（linkedlist）
+  > linkedlist（链表）：当列表类型无法满足 ziplist 的条件时，Redis 会使用 linkedlist 作为列表的内部实现。quicklist ziplist 和 linkedlist 的结合以 ziplist 为节点的链表（linkedlist），Redis 高版本使用功能 quiklist，低版本使用 linkedlist。
   
 - set
 
@@ -1418,11 +1425,11 @@ Redis 底层实现 ZSet 的两种配置，可以通过 config get zset* 查询�
 - 是一种以空间换取时间的结构。由于链表，无法进行二分查找，因此借鉴数据库索引的思想，提取出链表中关键节点（索引），先在关键节点上查找，再进入下层链表查找。提取多层关键节点，就形成了跳跃表；
 - 跳表 = 链表 + 多级索引
 
-<img src="img/跳表结构.jpg" style="zoom: 33%;" />
+<img src="img/跳表结构.jpg" style="zoom: 50%;" />
 
 ##### 跳表的时间复杂度
 
-- 首先每一级索引我们提升了2倍的跨度，那就是减少了2倍的步数，所以是 n/2、n/4、n/8 以此类推；
+- 首先每一级索引我们提升了 2 倍的跨度，那就是减少了 2 倍的步数，所以是 n/2、n/4、n/8 以此类推；
 
 - 第 k 级索引结点的个数就是 n/(2^k)；
 
@@ -1467,7 +1474,7 @@ Redis 底层实现 ZSet 的两种配置，可以通过 config get zset* 查询�
 
 #### 布隆过滤器的特点
 
-- 高效的插入和查询，占用空间少，返回的结果时不确定性的；
+- 高效的插入和查询，占用空间少，返回的结果是不确定性的；
 - 一个元素如果判断的结果为存在的时候，元素不一定存在；
 - 一个元素如果判断的结果为不存在的时候，元素一定不存在；
 - 布隆过滤器可以添加元素，但不能删除元素；因为删除元素会导致误判率增加
@@ -1490,7 +1497,7 @@ Redis 底层实现 ZSet 的两种配置，可以通过 config get zset* 查询�
   > - 把已经存在数据的 key 存在布隆过滤器中，相当于 redis 前面挡着一个布隆过滤器
   > - 当有新的请求时，先到布隆过滤器中查询是否存在
   > - 如果布隆过滤器中判断不存在该条数据，则直接返回
-  > - 如果布隆过滤器中判断存在该条数据，才去查询缓存 redis，如果若 redis 中没有查询到，则穿透到数据库。
+  > - 如果布隆过滤器中判断存在该条数据，才去查询缓存 redis，如果若 redis 中没有查询到，则再穿透到数据库去查询。
 
 - 黑名单校验
 
@@ -1546,7 +1553,7 @@ Redis 底层实现 ZSet 的两种配置，可以通过 config get zset* 查询�
 
 如果这些点都为 1，则被查询的变量**很可能存在**。**因为，映射函数本身就是散列函数，散列函数时会有碰撞的**。
 
-> 正式基于布隆过滤器的快速检测的特性，我们可以把数据写入数据库时，使用布隆过滤器做个标记。当缓存缺失后，应用查询数据库时，可以通过查询布隆过滤器快速判断数据是否存在。如果不存在，就不用再去数据库中查询了。这样一来，即使发生了缓存穿透，大量请求只会查询 redis 和布隆过滤器，而不会积压到数据库，也就不会影响数据库的正常运行。布隆过滤器可以使用 redis 实现，本身就能承担较大的并发访问压力。
+> 正是基于布隆过滤器的快速检测的特性，我们可以把数据写入数据库时，使用布隆过滤器做个标记。当缓存缺失后，应用查询数据库时，可以通过查询布隆过滤器快速判断数据是否存在。如果不存在，就不用再去数据库中查询了。这样一来，即使发生了缓存穿透，大量请求只会查询 redis 和布隆过滤器，而不会积压到数据库，也就不会影响数据库的正常运行。布隆过滤器可以使用 redis 实现，本身就能承担较大的并发访问压力。
 
 <br>
 
@@ -1866,13 +1873,13 @@ public class JHSProductController {
 
 #### 总结
 
-| 缓存问题     | 产生原因               | 解决方案                               |
-| ------------ | ---------------------- | -------------------------------------- |
-| 缓存更新方式 | 数据变更、缓存时效性   | 同步更新、失效更新、异步更新、定时更新 |
-| 缓存不一致   | 同步更新失败、异步更新 | 增加重试、补偿任务、最终一致           |
-| 缓存穿透     | 恶意攻击               | 空对象缓存、布隆过滤器                 |
-| 缓存击穿     | 热点 key 失效          | 互斥更新、随机退避、差异失效时间       |
-| 缓存雪崩     | 缓存宕机               | 快速失败熔断、主从复制、高可用集群模式 |
+| 缓存问题     | 产生原因               | 解决方案                                                     |
+| ------------ | ---------------------- | ------------------------------------------------------------ |
+| 缓存更新方式 | 数据变更、缓存时效性   | 同步更新、失效更新、异步更新、定时更新                       |
+| 缓存不一致   | 同步更新失败、异步更新 | 增加重试、补偿任务、最终一致                                 |
+| 缓存穿透     | 恶意攻击               | 空对象缓存、布隆过滤器                                       |
+| 缓存击穿     | 热点 key 失效          | 互斥更新(加锁)、差异失效时间(设置主副缓存，查询与添加缓存的顺序对调) |
+| 缓存雪崩     | 缓存宕机               | 快速失败熔断、主从复制、高可用集群模式                       |
 
 ---
 
@@ -1880,9 +1887,9 @@ public class JHSProductController {
 
 #### 分布式锁的条件
 
-- 独占性：任何时刻只能有且只有一个线程持有该锁
-- 高可用：集群环境下，不能因为一某一个节点挂了，而出现获取锁和释放锁失败的情况
-- 防死锁：杜绝死锁，必须有超时控制机制或撤销操作，有个兜底终止跳出方案
+- 独占性：任何时刻有且只有一个线程持有该锁
+- 高可用：集群环境下，不能因为某一个节点的宕机，而出现获取锁和释放锁失败的情况
+- 防死锁：杜绝死锁，必须有超时控制机制或撤销操作，有兜底终止跳出方案
 - 不乱抢：防止张冠李戴，不能私下 unlock 其它线程的锁，只能自己加锁，自己释放锁
 - 重入性：同一个节点的同一个线程，如果获得锁之后，它也可以再次获得这个锁
 
@@ -1909,7 +1916,7 @@ Redisson 实现分布式锁：https://github.com/redisson/redisson/wiki/8.-Distr
 假设我们有 N 个 Redis 主节点，例如 N = 5，这些节点是完全独立的，我们不使用复制或任何其他隐式协调系统，为了取到锁客户端执行以下操作：
 
 1. 获取当前时间，以毫秒为单位；
-2. 依次尝试从 5 个实例，使用相同的 key 和随机值（例如 UUID）获取锁。当向 Redis 请求获取锁时，客户端应该设置一个超时时间，这个超时时间应该小于锁的失效时间。例如你的锁自动失效时间为 10 秒，则超时时间应该在 5-50 毫秒之间。这样可以防止客户端在试图与一个宕机的 Redis 节点对话时长时间处于阻塞状态。如果一个实例不可用，客户端应该尽快尝试去另外一个 Redis 实例请求获取锁；
+2. 依次尝试从 5 个实例，使用相同的 key 和随机值（例如 UUID）获取锁。当向 Redis 请求获取锁时，客户端应该设置一个超时时间，这个超时时间应该小于锁的失效时间。例如你的锁自动失效时间为 10 秒，则超时时间应该在 5-50 毫秒之间。这样可以防止客户端在试图与一个宕机的 Redis 节点对话时，长时间处于阻塞状态。如果一个实例不可用，客户端应该尽快尝试去另外一个 Redis 实例请求获取锁；
 3. 客户端通过当前时间减去步骤 1 记录的时间来计算获取锁使用的时间。当且仅当从大多数（N/2+1，这里是 3 个节点）的 Redis 节点都取到锁，并且获取锁使用的时间小于锁失效时间时，锁才算获取成功；
 4. 如果取到了锁，其真正有效时间等于初始有效时间减去获取锁所使用的时间（步骤 3 计算的结果）；
 5. 如果由于某些原因未能获得锁（无法在至少 N/2 + 1 个 Redis 实例获取锁、或获取锁的时间超过了有效时间），客户端应该在所有的 Redis 实例上进行解锁（即便某些 Redis 实例根本就没有加锁成功，防止某些节点获取到锁但是客户端没有得到响应而导致接下来的一段时间不能被重新获取锁）。
@@ -1971,7 +1978,7 @@ public class WatchDogDemo {
 
 ##### 缓存续命
 
-Redis 分布式锁过期了，但是业务逻辑还没处理完，需要对锁进行续命。Redisson 的实现方案是，使用”看门狗“来定期检查（每 1/3 的锁时间检查一次），如果线程还持有锁，则刷新过期时间。即获取锁成功后，给锁加一个 watchdog，watchdog 会另起一个定时任务，在锁没有被释放且快要过期的时候对锁进行续期。
+Redis 分布式锁过期了，但是业务逻辑还没处理完，需要对锁进行续命。Redisson 的实现方案是，使用 `看门狗` 来定期检查（每 1/3 的锁时间检查一次），如果线程还持有锁，则刷新过期时间。即获取锁成功后，给锁加一个 watchdog，watchdog 会另起一个定时任务，在锁没有被释放且快要过期的时候对锁进行续期。
 
 ```java
 // RedissonLock 在创建时，构造方法中定义锁的过期时间
@@ -2040,7 +2047,7 @@ private <T> RFuture<Long> tryAcquireAsync(long waitTime, long leaseTime, TimeUni
 >
 > ARGV[1]：就是锁 key 的默认生存时间，默认是 30s
 >
-> 如何加锁：如果要加锁的那个锁key不存在的话，就进行加锁，hincrby 加锁客户端 ID 1，接着会执行 pexpire colin_key 30000，即给锁 key 设置过期时间。
+> 如何加锁：如果要加锁的那个锁 key 不存在的话，就进行加锁，hincrby 加锁客户端 ID 1，接着会执行 pexpire colin_key 30000，即给锁 key 设置过期时间。
 >
 > Lua 脚本加锁过程解析
 >
@@ -2048,7 +2055,7 @@ private <T> RFuture<Long> tryAcquireAsync(long waitTime, long leaseTime, TimeUni
 > 2. 通过 hexists 判断，如果锁已存在，并且锁的是当前线程，则证明是重入锁，加锁成功
 > 3. 如果锁已存在，但锁的不是当前线程，则证明有其他线程持有锁。返回当前锁的过期时间(代表了 `colin_key` 这个锁 key 的剩余生存时间)，加锁失败
 >
-> 加锁成功后，在 redis 的内存数据中，就有一条 hash 结构的数据。Key 为锁的名称；field 为随机字符串+线程ID；值为 1。并且，如果同一线程多次调用 lock 方法，值递增1，即可重入锁见后
+> 加锁成功后，在 redis 的内存数据中，就有一条 **hash** 结构的数据。Key 为锁的名称；field 为随机字符串+线程ID；值为 1。并且，如果同一线程多次调用 lock 方法，值递增1，即可重入锁见后
 >
 > ```sh
 > localhost:0>HGETALL colin_key
@@ -2134,7 +2141,7 @@ protected RFuture<Boolean> unlockInnerAsync(long threadId) {
 
 > Lua 脚本释放锁锁过程解析
 >
-> 1. 如果释放锁的线程和已经存在锁的线程不是同一个线程，则但会 null
+> 1. 如果释放锁的线程和已经存在锁的线程不是同一个线程，则返回 null
 > 2. 通过 hincrby 递减 1，先释放一次锁。若剩余次数还大于 0，则证明当前锁时重入锁，刷新过期时间
 > 3. 若剩余次数小于 0，删除 key 并发布锁释放的消失，解锁成功
 
@@ -2242,7 +2249,7 @@ MySQL的主从复制将经过如下步骤：
 2. salve 从服务器会在一定时间间隔内对 master 主服务器上的二进制日志进行探测，探测其是否发生过改变，如果探测到 master 主服务器的二进制事件日志发生了改变，则开始一个 I/O Thread 请求 master 二进制事件日志；
 2. 同时 master 主服务器为每个 I/O Thread 启动一个 dump Thread，用于向其发送二进制事件日志；
 2. slave 从服务器将接收到的二进制事件日志保存至自己本地的中继日志文件中；
-2. salve 从服务器将启动 SQL Thread 从中继日志中读取二进制日志，在本地重放，使得其数据和主服务器保持一致；
+2. salve 从服务器将启动 SQL Thread 从中继日志中读取二进制日志，将数据存放到本地，使得本地数据和主服务器保持一致；
 2. 最后 I/O Thread 和 SQL Thread 将进入睡眠状态，等待下一次被唤醒；
 
 <br>
@@ -2262,19 +2269,19 @@ MySQL的主从复制将经过如下步骤：
 
 ###### mysql 端授权 canal 链接 mysql 账号
 
-- 开启 MySQL的binlog写入功能（需要重启）：修改 mysql 配置文件 my.cnf
+- 开启 MySQL 的 binlog 写入功能（需要重启）：修改 mysql 配置文件 my.cnf
 
   ```sh
-  log-bin=mysql-bin #开启 binlog
-  binlog-format=ROW #选择 ROW 模式
-  server_id=1    #配置MySQL replaction需要定义，不要和canal的 slaveId重复
+  log-bin=mysql-bin   #开启 binlog
+  binlog-format=ROW   #选择 ROW 模式
+  server_id=1    		#配置MySQL replaction需要定义，不要和canal的 slaveId重复
   ```
 
-  > ROW模式 除了记录sql语句之外，还会记录每个字段的变化情况，能够清楚的记录每行数据的变化历史，但会占用较多的空间。
+  > ROW 模式 除了记录sql语句之外，还会记录每个字段的变化情况，能够清楚的记录每行数据的变化历史，但会占用较多的空间。
   >
-  > STATEMENT模式只记录了sql语句，但是没有记录上下文信息，在进行数据恢复的时候可能会导致数据的丢失情况；
+  > STATEMENT 模式只记录了 sql 语句，但是没有记录上下文信息，在进行数据恢复的时候可能会导致数据的丢失情况；
   >
-  > MIX模式比较灵活的记录，理论上说当遇到了表结构变更的时候，就会记录为statement模式。当遇到了数据更新或者删除情况下就会变为row模式；
+  > MIX 模式比较灵活的记录，理论上说当遇到了表结构变更的时候，就会记录为 statement 模式。当遇到了数据更新或者删除情况下就会变为 row 模式；
 
 - mysql 默认的用户在 mysql 库的 user 表里，可使用 `SELECT * FROM mysql.user` 查询。mysql 默认没有 canal 账户，应新建账号并授权:
 
@@ -2325,10 +2332,10 @@ MySQL的主从复制将经过如下步骤：
 
 > 异常问题:
 >
-> 1. 先更新mysql的某商品的库存，当前商品的库存是100，更新为99个。
-> 2. 先更新mysql修改为99成功，然后更新redis。
-> 3. 此时假设异常出现，更新redis失败了，这导致mysql里面的库存是99而redis里面的还是100 。
-> 4. 上述发生，会让数据库里面和缓存redis里面数据不一致，读到脏数据
+> 1. 先更新 mysql 的某商品的库存，当前商品的库存是 100，更新为 99 个。
+> 2. 先更新 mysql 修改为 99 成功，然后更新 redis。
+> 3. 此时假设异常出现，更新 redis 失败了，这导致 mysql 里面的库存是 99 而 redis 里面的还是 100 。
+> 4. 上述发生，会让数据库里面和缓存 redis 里面数据不一致，读到脏数据
 
 ##### 先删除缓存，再更新数据库
 
@@ -2336,11 +2343,11 @@ MySQL的主从复制将经过如下步骤：
 
 ##### 先更新数据库，再删除缓存
 
-> 异常问题：假如缓存删除失败或者来不及，导致请求再次访问redis时缓存命中，读取到的是缓存旧值。
+> 异常问题：假如缓存删除失败或者来不及，导致请求再次访问 redis 时缓存命中，读取到的是缓存旧值。
 >
 > 解决方案：
 >
-> 1 可以把要删除的缓存值或者是要更新的数据库值暂存到消息队列中（例如使用Kafka/RabbitMQ等）。
+> 1 可以把要删除的缓存值或者是要更新的数据库值暂存到消息队列中（例如使用 Kafka/RabbitMQ 等）。
 >
 > 2 当程序没有能够成功地删除缓存值或者是更新数据库值时，可以从消息队列中重新读取这些值，然后再次进行删除或更新。
 >
@@ -2463,7 +2470,7 @@ Reactor 模式中有 2 个关键组成
 
 Redis 利用 epoll 来实现 IO 多路复用，将连接信息和事件放到队列中，依次发放到文件事件分派器，事件分派器将事件分发给事件处理器。
 
-<img src="img/IO多路复用.jpg" style="zoom: 50%;" />
+<img src="img/IO多路复用.jpg" style="zoom: 33%;" />
 
 Redis 是跑在单线程中的，所有的操作都是按照顺序线性执行的，但是由于读写操作等待用户输入或输出都是阻塞的，所以 I/O 操作在一般情况下往往不能直接返回，这会因为某一文件的 I/O 阻塞而导致整个进程无法对其它客户提供服务，而 I/O 多路复用就是为了解决这个问题而出现的。
 
@@ -2541,11 +2548,11 @@ select 函数的缺点
 
 4. 当有数据时 select 就会返回，但是 select 函数并不知道哪个**文件描述符**有数据了，后面还需要再次对文件描述符数组进行遍历，效率比较低 。
 
-<img src="img/select1.jpeg" style="zoom: 50%;" />
+<img src="img/select1.jpeg" style="zoom: 33%;" />
 
 从代码中可以看出，select 系统调用后，返回了一个置位后的 &rset，这样用户态只需进行很简单的二进制比较，就能很快知道哪些 socket 需要 read 数据，有效提高了效率
 
-<img src="img/select2.jpeg" style="zoom: 50%;" />
+<img src="img/select2.jpeg" style="zoom: 33%;" />
 
 **select 的优点**：select 其实就是把 NIO 中用户态要遍历的文件描述符数组(我们的每一个 socket 链接，安装进 ArrayList 里面的那个)拷贝到了内核态，让内核态来遍历，因为用户态判断 socket 是否有数据还是要调用内核态的，所有拷贝到内核态后，这样遍历判断的时候就不用一直用户态和内核态频繁切换了。
 
@@ -2593,7 +2600,7 @@ poll 解决的问题：
 
 2. 解决了 rset 不可重用的情况
 
-<img src="img/poll.jpeg" style="zoom: 50%;" />
+<img src="img/poll.jpeg" style="zoom: 33%;" />
 
 poll 的优点：
 
@@ -2640,7 +2647,7 @@ epoll的执行流程：
 
 4. 读取、处理。
 
-<img src="img/epoll4.jpeg" style="zoom: 50%;" />
+<img src="img/epoll4.jpeg" style="zoom: 33%;" />
 
 epoll 的时间通知机制：
 
@@ -2681,12 +2688,12 @@ epoll 是现在最先进的 I/O 多路复用器，Redis、Nginx，linux 中的 J
 
 #### 五种 I/O 模型的总结
 
-<img src="img/五种IO模型.jpg" style="zoom: 50%;" />
+<img src="img/五种IO模型.jpg" style="zoom: 33%;" />
 
 <br>
 
 #### Redis 对于 /IO 多路复用函数的选择
 
-<img src="img/redis对于多路复用函数的选择.jpeg" style="zoom: 50%;" />
+<img src="img/redis对于多路复用函数的选择.jpeg" style="zoom: 33%;" />
 
 **Redis 保有三种 /IO 多路复用函数，select 作为保底方案**
