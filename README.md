@@ -629,7 +629,7 @@ GEOHASH key member [member ...]
 
 #### 字典数据库
 
-Redis 是 key-value 存储系统，其中 key 类型一般为字符串，value 类型则为 Redis 对象（redisObject）。
+Redis 是 key-value 存储系统，其中 key 类型一般为字符串，value 类型则为 Redis 对象，即 redisObject。
 
 <img src="img/字典数据库.jpeg" style="zoom: 67%;" />
 
@@ -642,6 +642,8 @@ Redis 是 key-value 存储系统，其中 key 类型一般为字符串，value �
 - GEO：实质是 zset
 
 <img src="img/redis数据结构底层实现.jpeg" style="zoom: 67%;" />
+
+<img src="img/RedisDB主体数据结构.png" style="zoom: 67%;" />
 
 <br>
 
@@ -715,8 +717,8 @@ typedef struct dictEntry {
 typedef struct redisObject {
     unsigned type:4; /*当前对象的数据类型，包括 OBJ_STRING、OBJ_LIST、OBJ_HASH、OBJ_SET、OBJ_ZSET*/
     unsigned encoding:4; /*当前对象底层存储的编码类型，即具体的数据结构*/
-    unsigned lru:LRU_BITS; /*采用 LRU 算法清除内存中的对象*/
-    int refcount; /*引用计数，当 refcount 为 0 的时候，表示该对象已经不被任何对象引用，则可进行垃圾回收了*/
+    unsigned lru:LRU_BITS; /*24 位，对象最后一次被命令程序访问的时间戳，与内存回收有关*/
+    int refcount; /*引用计数，记录对象引用次数，当 refcount 为 0 的时候，表示该对象已经不被任何对象引用，则可进行垃圾回收了*/
     void *ptr; /*指向对象实际的数据结构的指针*/
 } robj;
 ```
@@ -725,10 +727,10 @@ typedef struct redisObject {
 >
 > -  4 位的 type 表示具体的数据类型，包括 OBJ_STRING、OBJ_LIST、OBJ_HASH、OBJ_SET、OBJ_ZSET
 >
-> - 4 位的 encoding 表示该类型的物理编码方式，**同一种数据类型可能有不同的编码方式**，比如 string 提供了三种，int、embstr、raw
-> - lru 字段表示当内存超限时，采用 LRU 算法清除内存中的对象
+> - 4 位的 encoding 表示该类型的物理编码方式，**同一种数据类型可能有不同的编码方式**，比如 string 提供了三种，**int**、**embstr**、**raw**
+> - lru 字段表示对象最后一次被命令程序访问的时间戳，与内存回收有关，当内存超限时，采用 LRU 算法清除内存中的对象
 > - refcount 表示对象的引用计数
-> - ptr指针指向真正的底层数据结构的指针。
+> - ptr 指向真正的底层数据结构的指针。
 
 ##### redisObject与底层数据结构之间的关系
 
@@ -738,15 +740,28 @@ typedef struct redisObject {
 
 #### Redis 数据类型底层结构源码分析
 
-以 `set hello word` 为例，Redis 是 k-v 键值对的数据库，每个键值对都会有一个 dictEntry（源码位置：dict.h），里面指向了 key 和 value 的指针，next 指向下一个 dictEntry。
+以 `set hello word` 为例：
 
-key 是字符串，Redis 没有直接使用 C 语言中的字符数组，而是存储在 redis 自定义的 SDS 中。
+1. Redis 是 k-v 键值对的数据库，每个键值对都会有一个 dictEntry（源码位置：dict.h），里面指向了 key 和 val 的指针，next 指向下一个 dictEntry；
+2. key 是字符串，Redis 没有直接使用 C 语言中的字符数组，而是存储在 redis 自定义的 SDS 中；
+3. value 既不是直接作为字符串存储，也不是直接存储在 SDS 中，而是存储在 redisObject 中；实际上五种常用的数据类型的任何一种，都是通过 redisObject 来存储的。
 
-value 既不是直接作为字符串存储，也不是直接存储在 SDS 中，而是存储在 redisObject 中。
-
-实际上五种常用的数据类型的任何一种，都是通过 redisObject 来存储的。
+```c
+typedef struct dictEntry {
+    void *key;
+    union {
+        void *val;
+        uint64_t u64;
+        int64_t s64;
+        double d;
+    } v;
+    struct dictEntry *next;
+} dictEntry;
+```
 
 <img src="img/redisObject存储.jpg" style="zoom: 50%;" />
+
+<img src="img/redis 数据结构底层思维.JPG" style="zoom: 50%;" />
 
 
 
@@ -811,23 +826,29 @@ localhost:1>OBJECT encoding k1
 "raw"
 ```
 
-###### SDS
+###### SDS 简单动态字符串
 
-Redis 没有直接复用 C 语言的字符数组，而是新建了属于自己的结构，SDS。在 Redis 数据库里，包含字符串值的键值对都是由 SDS 实现的。Redis 中所有的键都是由字符串对象实现的，即底层是由 SDS 实现，Redis 中所有的值对象中包含的字符串对象底层也是由 SDS 实现。
+Redis 没有直接复用 C 语言的字符数组，而是新建了属于自己的结构，SDS。在 Redis 数据库里，包含字符串值的键值对都是由 SDS 实现的。Redis 中所有的**键**都是由字符串对象实现的，即底层是由 SDS 实现，Redis 中所有的值对象中包含的字符串对象底层也是由 SDS 实现。（一个字符串最大为 512 MB）
 
 <img src="img/SDS.jpeg" style="zoom: 67%;" />
 
 ```h
 # sds.h 源码
 struct __attribute__ ((__packed__)) sdshdr8 {
-    uint8_t len; /* 当前字符数组的长度，使我们在获取字符串长度的时候可以在 O(1)情况下拿到，而不是像 C 那样需要遍历一遍字符串 */
-    uint8_t alloc; /* 当前字符数组总共分配的内存大小 */
-    unsigned char flags; /* 当前字符数组的属性，用来表示到底是 sdshdr8 还是 sdshdr16 等 */
-    char buf[]; /* 表示字符串数组，字符串真正的值 */
+    uint8_t len; /* 已用的字节长度，即当前字符数组的长度，使我们在获取字符串长度的时候可以在 O(1)情况下拿到，而不是像 C 那样需要遍历一遍字符串 */
+    uint8_t alloc; /* 字符串最大字节长度，即当前字符数组总共分配的内存大小 */
+    unsigned char flags; /* 用来表示 SDS 的类型；即当前字符数组的属性，用来表示到底是 sdshdr8 还是 sdshdr16 等 */
+    char buf[]; /* 真正有效的字符串数据，长度由 alloc 控制；即表示字符串数组，字符串真正的值 */
 };
 ```
 
-Redis 中字符串的实现，SDS有多种结构：
+> len：表示 SDS 的长度，使得在获取字符串长度的时候可以在 O(1) 情况下得到，而不是像 C 语言那样需要遍历一遍字符串
+>
+> alloc：可以用来计算 free，就是字符串已经分配的未使用的空间，有了这个值就可以引入预分配空间的算法了，而不用去考虑内存分配的问题
+>
+> buf：表示字符串数组，真正有效的字符串数据
+
+###### Redis 中字符串的实现，SDS 有多种结构：
 
 - sdshdr5：2^5=32 byte
 - sdshdr8：2 ^ 8=256 byte
@@ -835,9 +856,11 @@ Redis 中字符串的实现，SDS有多种结构：
 - sdshdr32：2 ^ 32 byte = 4 GB
 - sdshdr64：2^64 byte  ＝17179869184G，用于存储不同的长度的字符串。
 
-Redis 为什么重新设计一个 SDS 数据结构？
+###### Redis 为什么重新设计一个 SDS 数据结构？
 
-C 语言没有 Java 里面的 String 类型，只能是靠自己的 char[] 来实现，字符串在 C 语言中的存储方式，想要获取 Redis 的长度，需要从头开始遍历，直到遇到 `\0` 为止。所以，Redis 没有直接使用 C 语言传统的字符串标识，而是自己构建了一种名为简单动态字符串 SDS（simple dynamic string）的抽象类型，并将 SDS 作为 Redis 的默认字符串。
+<img src="img/C 语言中字符串展示.jpg" style="zoom: 33%;" />
+
+C 语言没有 Java 里面的 String 类型，只能是靠自己的 char[] 来实现，字符串在 C 语言中的存储方式，想要获取上图字符串 "Redis" 的长度，需要从头开始遍历，直到遇到 `\0` 为止。所以，Redis 没有直接使用 C 语言传统的字符串标识，而是自己构建了一种名为简单动态字符串 SDS（simple dynamic string）的抽象类型，并将 SDS 作为 Redis 的默认字符串。
 
 <table>
   <tr align="center">
@@ -864,22 +887,22 @@ C 语言没有 Java 里面的 String 类型，只能是靠自己的 char[] 来�
     <td>根据 len 长度来判断字符串结束的，二进制安全的问题就解决了</td>
   </tr>
 </table>
-
 <br>
 
 ###### set key value 源码
 
 **INT 编码格式：**
 
-当字符串键值的内容可以用一个 64 位有符号整形来表示时，Redis 会将键值转化为 long 型来进行存储，此时即对应 OBJ_ENCODING_INT 编码类型。内部的内存结构表示如下:
+当字符串键值的内容可以用一个 64 位有符号整形来表示时，Redis 会将键值转化为 long 型来进行存储，此时即对应 OBJ_ENCODING_INT 编码类型。
+
+执行命令：`set k1 123`，内部的内存结构表示如下:
 
 <img src="img/INT编码格式.jpeg" style="zoom: 50%;" />
 
-Redis 启动时会预先建立 10000 个分别存储 0~9999 的 redisObject 变量，作为共享对象，这就意味着如果 set 字符串的键值在 0~10000 之间的话，则可以**直接指向共享对象，而不需要再建立新对象，此时键值不占空间！**
+> Redis 启动时会预先建立 10000 个分别存储 0~9999 的 redisObject 变量，作为共享对象，这就意味着如果 set 字符串的键值在 0~10000 之间的话，则可以**直接指向共享对象，而不需要再建立新对象，此时键值不占空间！**
 
 ```c
 # object.c 源码
-
 len = sdslen(s);
 # 字符串长度小于等于 20，且字符串转成 long 类型成功
 if (len <= 20 && string2l(s,len,&value)) {
@@ -889,11 +912,12 @@ if (len <= 20 && string2l(s,len,&value)) {
 		value >= 0 &&
 		value < OBJ_SHARED_INTEGERS)
 	{
-    # 配置 maxmemory，且值在 10000 以内，直接使用共享对象。OBJ_SHARED_INTEGERS 在 server.h 中定义 [#define OBJ_SHARED_INTEGERS 10000]
+    	# 配置 maxmemory，且值在 10000 以内，直接使用共享对象。OBJ_SHARED_INTEGERS 在 server.h 中定义 [#define OBJ_SHARED_INTEGERS 10000]
 		decrRefCount(o);
 		incrRefCount(shared.integers[value]);
 		return shared.integers[value];
 	} else {
+        # 否则转换成 int 或 embstr
 		if (o->encoding == OBJ_ENCODING_RAW) {
 			sdsfree(o->ptr);
 			o->encoding = OBJ_ENCODING_INT;
@@ -915,44 +939,14 @@ if (len <= 20 && string2l(s,len,&value)) {
 
 ```c
 # object.c 源码
-
-# 字符串长度小于 44 的字符串。【#define OBJ_ENCODING_EMBSTR_SIZE_LIMIT 44】
-if (len <= OBJ_ENCODING_EMBSTR_SIZE_LIMIT) {
-	robj *emb;
-
-	if (o->encoding == OBJ_ENCODING_EMBSTR) return o;
-	emb = createEmbeddedStringObject(s,sdslen(s));
-	decrRefCount(o);
-	return emb;
-}
-
-# 将字符串转成 OBJ_ENCODING_EMBSTR 编码格式
-robj *createEmbeddedStringObject(const char *ptr, size_t len) {
-    robj *o = zmalloc(sizeof(robj)+sizeof(struct sdshdr8)+len+1);
-    struct sdshdr8 *sh = (void*)(o+1);
-		# string 类型
-    o->type = OBJ_STRING;
-    o->encoding = OBJ_ENCODING_EMBSTR;
-    o->ptr = sh+1;
-    o->refcount = 1;
-    if (server.maxmemory_policy & MAXMEMORY_FLAG_LFU) {
-        o->lru = (LFUGetTimeInMinutes()<<8) | LFU_INIT_VAL;
-    } else {
-        o->lru = LRU_CLOCK();
-    }
-
-    sh->len = len;
-    sh->alloc = len;
-    sh->flags = SDS_TYPE_8;
-    if (ptr == SDS_NOINIT)
-        sh->buf[len] = '\0';
-    else if (ptr) {
-        memcpy(sh->buf,ptr,len);
-        sh->buf[len] = '\0';
-    } else {
-        memset(sh->buf,0,len+1);
-    }
-    return o;
+#define OBJ_ENCODING_EMBSTR_SIZE_LIMIT 44
+robj *createStringObject(const char *ptr, size_t len) {
+    if (len <= OBJ_ENCODING_EMBSTR_SIZE_LIMIT)
+        # 长度小于 44 的字符串，将其转换成 OBJ_ENCODING_EMBSTR 格式
+        return createEmbeddedStringObject(ptr,len);
+    else
+        # 长度超过 44 的字符串，将其转换成 OBJ_ENCODING_RAW 格式
+        return createRawStringObject(ptr,len);
 }
 ```
 
@@ -964,7 +958,6 @@ robj *createEmbeddedStringObject(const char *ptr, size_t len) {
 
 ```c
 # object.c 源码
-
 #define OBJ_ENCODING_EMBSTR_SIZE_LIMIT 44
 robj *createStringObject(const char *ptr, size_t len) {
     if (len <= OBJ_ENCODING_EMBSTR_SIZE_LIMIT)
@@ -984,7 +977,7 @@ robj *createStringObject(const char *ptr, size_t len) {
 
 ###### 总结
 
-Redis 内部会根据用户给的不同键值而使用不同的编码格式，自适应地选择较优化的内部编码格式，而这一切对用户完全透明。只有整数才会使用 int，如果是浮点数， Redis 内部其实先将浮点数转化为字符串值，然后再保存。embstr 与 raw 类型底层的数据结构其实都是 SDS (简单动态字符串，Redis 内部定义 sdshdr 一种结构)。
+**Redis 内部会根据用户给的不同键值而使用不同的编码格式，自适应地选择较优化的内部编码格式，而这一切对用户完全透明**。只有整数才会使用 int，如果是浮点数， Redis 内部其实先将浮点数转化为字符串值，然后再保存。embstr 与 raw 类型底层的数据结构其实都是 SDS (简单动态字符串，Redis 内部定义 sdshdr 一种结构)。
 
 | 类型   | 说明                                                         |
 | ------ | ------------------------------------------------------------ |
@@ -1004,11 +997,26 @@ Redis 内部会根据用户给的不同键值而使用不同的编码格式，�
 
 - **hashtable**
 
+###### 配置：
+
+- hash-max-ziplist-entries： 使用压缩列表保存时，哈希集合中的最大元素个数；
+- hash-max-ziplist-value： 使用压缩列表保存时，哈希集合中单个元素的最大长度。
+
+<img src="img/hash 数据结构编码设置.jpg" style="zoom: 25%;" />
+
+> Hash 类型键的字段个数 小于  hash-max-ziplist-entries 并且每个字段名和字段值的长度 小于  hash-max-ziplist-value 时，Redis 才会使用 OBJ_ENCODING_ZIPLIST 来存储该键，前述条件任意一个不满足则会转换为 OBJ_ENCODING_HT 的编码方式
+>
+> 1. 哈希对象保存的键值对数量小于 512 个（默认值）；
+> 2. 所有的键值对的健和值的字符串长度都小于等于 64 byte（默认值，一个英文字母一个字节）时用 ziplist，反之用 hashtable；
+> 3. ziplist 升级到 hashtable 可以，反过来降级不可以。
+> 4. 一旦从压缩列表转为了哈希表，Hash 类型就会一直用哈希表进行保存而不会再转回压缩列表了。
+> 5. 在节省内存空间方面哈希表就没有压缩列表高效了。
+
 <br>
 
 ###### ziplist 源码分析
 
-ziplist 是一个经过特殊编码的双向链表，它不存储指向上一个链表节点和指向下一个链表节点的指针，而是存储上一个节点长度和当前节点长度，通过牺牲部分读写性能，来换取高效的内存空间利用率，节约内存，是一种时间换空间的思想。只用在字段个数少，字段值小的场景里面。
+ziplist 压缩列表时一种紧凑的编码格式，是经过特殊编码的**双向链表**。它不存储指向上一个链表节点和指向下一个链表节点的指针，而是存储上一个节点长度和当前节点长度，通过牺牲部分读写性能，来换取高效的内存空间利用率，节约内存，是一种时间换空间的思想。只用在字段个数少，字段值小的场景里面。压缩列表内存利用率极高的原因与其连续内存的特性是分不开的。
 
 ziplist 的总体布局为：
 
@@ -1019,19 +1027,39 @@ ziplist 的总体布局为：
 <img src="img/压缩列表各组成部分的详细说明.jpg" style="zoom: 25%;" />
 
 ```c
-# ziplist.c
+# ziplist.c 压缩列表节点结构
 typedef struct zlentry {
-    unsigned int prevrawlensize; /* 上一个链表节点占用的长度 */
+    unsigned int prevrawlensize; /* 上一个链表节点占用的长度(字节数) */
     unsigned int prevrawlen;     /* 存储上一个链表节点的常数数值所需要得字节数 */
     unsigned int lensize;        /* 存储当前链表节点长度数值所需要的字节数 */
     unsigned int len;            /* 当前链表节点占用的长度 */
     unsigned int headersize;     /* 当前链表节点的头部大小（prevrawlensize + lensize），即非数据域的大小 */
-    unsigned char encoding;      /* 编码方式 */
-    unsigned char *p;            /* 压缩链表以字符串的形式保存，该指针指向当前节点的起始位置 */
+    unsigned char encoding;      /* 当前节点的编码格式 */
+    unsigned char *p;            /* 当前节点的指针，压缩链表以字符串的形式保存，该指针指向当前节点的起始位置 */
 } zlentry;
 ```
 
-压缩列表的遍历：通过指向表尾节点的位置指针 p1, 减去节点的 previous_entry_length，得到前一个节点起始地址的指针。如此循环，从表尾遍历到表头节点。从表尾向表头遍历操作就是使用这一原理实现的，只要我们拥有了一个指向某个节点起始地址的指针，那么通过这个指针以及这个节点的 previous_entry_length 属性程序就可以一直向前一个节点回溯，最终到达压缩列表的表头节点。
+压缩列表 zlentry 节点结构：每个 zlentry 由前一个节点的长度 、encoding 和 entry-data 三部分组成；
+
+- 前节点： (前节点占用的内存字节数)表示前 1 个 zlentry 的长度，prev_len 有两种取值情况：1 字节或 5 字节 。取值 1 字节时，表示上一个 entry 的长度小于 254 字节。虽然 1 字节的值能表示的数值范围是 0 ~ 255，但是压缩列表中 zlend 的取值默认是 255，因此，就默认用 255 表示整个压缩列表的结束，其他表示长度的地方就不能再用 255 这个值了。所以，当上一个 entry 长度小于 254 字节时，prev_len 取值为 1 字节，否则，就取值为 5 字节。
+- encoding： 记录节点的 content 保存数据的类型和长度。
+- content： 保存实际数据内容
+
+<img src="img/压缩列表节点结构.jpg" style="zoom: 25%;" />
+
+压缩列表的遍历： 
+
+- 压缩列表的遍历：通过指向表尾节点的位置指针 p1，减去节点的 previous_entry_length，得到前一个节点起始地址的指针。如此循环，从表尾遍历到表头节点。从表尾向表头遍历操作就是使用这一原理实现的，只要我们拥有了一个指向某个节点起始地址的指针，那么通过这个指针以及这个节点的 previous_entry_length 属性程序就可以一直向前一个节点回溯，最终到达压缩列表的表头节点。
+
+
+
+在存在链表的前提下，为什么要有压缩列表？
+
+1. 普通的双向链表会有两个指针，在存储数据很小的情况下，我们存储的实际数据的大小可能还没有指针占用的内存大，得不偿失 。ziplist 是一个特殊的双向链表没有维护双向指针：prev 和 next；而是存储上一个 entry 的长度和当前 entry 的长度，通过长度推算下一个元素在什么地方。牺牲读取的性能，获得高效的存储空间，因为(简短字符串的情况)存储指针比存储 entry 长度更费内存。这是典型的“时间换空间”。
+2. 链表在内存中一般是不连续的，遍历相对比较慢，而 ziplist 可以很好的解决这个问题，普通数组的遍历是根据数组里存储的数据类型来找到下一个元素的(例如 int 类型的数组访问下一个元素时每次只需要移动一个 sizeof(int) 就行)，但是 ziplist 的每个节点的长度是可以不一样的，而我们面对不同长度的节点又不可能直接 sizeof(entry)，所以 ziplist 只好将一些必要的偏移量信息记录在了每一个节点里，使之能跳到上一个节点或下一个节点。
+3. 头节点里有头节点，同时还有一个参数 len，和 string 类型提到的 SDS 类似，这里是用来记录链表长度的。因此获取链表长度时不用再遍历整个链表， 直接拿到 len 值就可以了，这个时间复杂度是 O(1)
+
+普通链表：<img src="img/普通链表.JPG" style="zoom:50%;" />压缩列表：<img src="img/ziplist总体布局.jpg" style="zoom:50%;" />
 
 **ziplist 存取情况**：
 
@@ -1039,7 +1067,7 @@ typedef struct zlentry {
 
 ###### hashtable 源码分析
 
-在 Redis 中，hashtable 被称为字典（dictionary），它是一个数组 + 链表的结构。
+在 Redis 中，hashtable 被称为字典（dictionary），它是一个数组 + 链表的结构。每一个键值对都是一个 dictEntry。
 
 ```c
 # t_hash.c 源码
@@ -1053,6 +1081,8 @@ void hsetCommand(client *c) {
     }
 
     if ((o = hashTypeLookupWriteOrCreate(c,c->argv[1])) == NULL) return;
+    
+    # ※※※※※※※※源码在下面※※※※※※※※※※
     hashTypeTryConversion(o,c->argv,2,c->argc-1);
 
     for (i = 2; i < c->argc; i += 2)
@@ -1132,7 +1162,7 @@ void hashTypeTryConversion(robj *o, robj **argv, int start, int end) {
             continue;
         size_t len = sdslen(argv[i]->ptr);
         if (len > server.hash_max_ziplist_value) {
-          	# OBJ_ENCODING_HT
+          	# 超过设置阈值 hash_max_ziplist_value，则编码格式转换成 OBJ_ENCODING_HT
             hashTypeConvert(o, OBJ_ENCODING_HT);
             return;
         }
@@ -1159,13 +1189,13 @@ list 用 quicklist 来存储，quicklist 存储了一个双向链表，每个节
 
 ziplist 的两种压缩配置。通过 `config get list*` 可以查看。
 
-- list-compress-depth
+- **list-compress-depth**
 
   表示一个 quicklist 两端不被压缩的节点个数。这里的节点是指 quicklist 双向链表的节点，而不是指 ziplist 里面的数据项个数。
 
   > 参数 list-compress-depth 的取值含义如下：
   >
-  > - 0: 是个特殊值，表示都不压缩。这是Redis的默认值。
+  > - **0: 是个特殊值，表示都不压缩。这是Redis的默认值。**
   >
   > - 1: 表示 quicklist 两端各有 1 个节点不压缩，中间的节点压缩。
   >
@@ -1173,7 +1203,7 @@ ziplist 的两种压缩配置。通过 `config get list*` 可以查看。
   >
   > - 3: 表示 quicklist 两端各有 3 个节点不压缩，中间的节点压缩。
 
-- list-max-ziplist-size
+- **list-max-ziplist-size**
 
   当取正值的时候，表示按照数据项个数来限定每个 quicklist 节点上的 ziplist 长度。比如，当这个参数配置成 5 的时候，表示每个 quicklist 节点的 ziplist 最多包含 5 个数据项。当取负值的时候，表示按照占用字节数来限定每个 quicklist 节点上的 ziplist 长度。这时，它只能取 -1 到 -5 这五个值
 
@@ -1182,7 +1212,7 @@ ziplist 的两种压缩配置。通过 `config get list*` 可以查看。
   > - -5: 每个 quicklist 节点上的 ziplist 大小不能超过 64 Kb。（注：1kb => 1024 bytes）
   >- -4: 每个 quicklist 节点上的 ziplist 大小不能超过 32 Kb。
   > - -3: 每个 quicklist 节点上的 ziplist 大小不能超过 16 Kb。
-  >- -2: 每个 quicklist 节点上的 ziplist 大小不能超过 8 Kb。（-2是Redis给出的默认值）
+  >- **-2: 每个 quicklist 节点上的 ziplist 大小不能超过 8 Kb。（-2是Redis给出的默认值）**
   > - -1: 每个 quicklist 节点上的 ziplist 大小不能超过 4 Kb。
 
 ```c
@@ -1198,11 +1228,10 @@ typedef struct quicklist {
     quicklistBookmark bookmarks[];
 } quicklist;
 
-
 typedef struct quicklistNode {
     struct quicklistNode *prev;	 			/* 前一个节点 */
     struct quicklistNode *next;	 			/* 后一个节点 */
-    unsigned char *zl;			 			/* 指向实际的 ziplist */
+    unsigned char *zl;			 			/* 指向实际的 ziplist，一个 ziplist 可以存放多个元素 */
     unsigned int sz;             			/* 当前 ziplist 占用多少字节 */
     unsigned int count : 16;     			/* 当前 ziplist 中存储了多少个元素，占 16bit，最大 65536 个 */
     unsigned int encoding : 2;   			/* 是否采用了 LZF 压缩算法压缩节点，RAW==1 or LZF==2 */
@@ -1223,6 +1252,8 @@ Redis 中 Set 数据类型有两种编码格式，intset 和 hashtable。
 
 - intset：如果元素都是整数类型，就用 intset 编码格式存储
 - hashtable：如果不是整数类型，就用 hashtable（数组 + 链表）编码格式存储。key 就是元素的值，value 为 null。
+
+<img src="img/set 编码格式设置参数.JPG" style="zoom: 50%;" />
 
 ```c
 # t_set.c 源码
@@ -1296,12 +1327,12 @@ int setTypeAdd(robj *subject, sds value) {
 
 ##### ZSet 数据结构
 
-Redis 使用跳跃表作为有序集合（ZSet）的底层实现的两种时机配置。可以通过 config get zset* 查询。
+Redis 中 ZSet 数据类型有两种编码格式，skiplist 和 ziplist。
 
 Redis 底层实现 ZSet 的两种配置，可以通过 config get zset* 查询。
 
-- zset_max_ziplist_entries：当有序集合中包含的元素数量超过服务器属性值（默认为 128）时，Redis 使用跳跃表作为有序集合的底层实现，否则会使用 ziplist 作为有序集合的底层实现
-- zset_max_ziplist_value：当有序集合中新添加元素的 member 的长度大于服务器属性值（默认为 64）时，Redis 使用跳跃表作为有序集合的底层实现，否则会使用 ziplist 作为有序集合的底层实现
+- zset_max_ziplist_entries：当有序集合中包含的元素数量超过服务器属性值（默认为 128）时，Redis 使用跳跃表（skiplist）作为有序集合的底层实现，否则会使用 ziplist 作为有序集合的底层实现
+- zset_max_ziplist_value：当有序集合中新添加元素的 member 的长度大于服务器属性值（默认为 64）时，Redis 使用跳跃表（skiplist）作为有序集合的底层实现，否则会使用 ziplist 作为有序集合的底层实现；
 
 <br>
 
@@ -1422,8 +1453,8 @@ Redis 底层实现 ZSet 的两种配置，可以通过 config get zset* 查询�
 
 ##### skiplist 结构
 
-- 是一种以空间换取时间的结构。由于链表，无法进行二分查找，因此借鉴数据库索引的思想，提取出链表中关键节点（索引），先在关键节点上查找，再进入下层链表查找。提取多层关键节点，就形成了跳跃表；
-- 跳表 = 链表 + 多级索引
+- **是一种以空间换取时间的结构**。由于链表，无法进行二分查找，因此借鉴数据库索引的思想，提取出链表中关键节点（索引），先在关键节点上查找，再进入下层链表查找。提取多层关键节点，就形成了跳跃表；
+- 跳表 = **链表 + 多级索引**
 
 <img src="img/跳表结构.jpg" style="zoom: 50%;" />
 
@@ -2199,14 +2230,24 @@ redis 默认每隔 100ms 检查一次是否有过期的 key，有过期 key，�
 
 ##### Redis 缓存淘汰策略有以下几种
 
-- noeviction：不会驱逐任何 key
-- allkeys-lru：对所有 key 使用 LRU 算法进行删除
-- volatile-lru：对所有设置了过期时间的 key 使用 LRU 算法进行删除
-- allkeys-random：对所有 key 随机删除
-- volatile-random：对所有设置了过期时间的 key 随机删除
-- volatile-ttl：删除马上要过期的 key
-- allkeys-lfu：对所有 key 使用 LFU 算法进行删除
-- volatile-lfu：对所有设置了过期时间的 key 使用 LFU 算法进行删除
+- noeviction：不会剔除任何数据，拒绝所有写入操作并返回客户端错误信息"(error) OOM command not allowed when used memory"，此时Redis只响应读操作；
+- allkeys-lru：使用 LRU 算法在所有数据中进行筛选删除；
+- volatile-lru：使用 LRU 算法在设置了过期时间的键值对中进行筛选删除；
+- allkeys-random：对所有键值对进行随机筛选删除
+- volatile-random：对所有设置了过期时间的键值对进行随机筛选删除
+- volatile-ttl：删除马上要过期的 key，会针对设置了过期时间的键值对，根据过期时间的先后进行删除，越早过期的越先被删除。
+- allkeys-lfu：使用 LFU 算法在所有数据中进行筛选删除。
+- volatile-lfu：使用 LFU 算法筛选设置了过期时间的键值对删除。
+
+> **LRU 算法**（Least Recently Used，最近最少使用）：淘汰很久没被访问过的数据，以**最近一次访问时间**作为参考。
+>
+> **LFU 算法**（Least Frequently Used，最不经常使用）：淘汰最近一段时间被访问次数最少的数据，以次数作为参考。
+>
+> 当存在热点数据时，LRU 的效率很好，但偶发性的、周期性的批量操作会导致LRU命中率急剧下降，缓存污染情况比较严重。这时使用LFU可能更好点；
+>
+> 根据自身业务类型，配置好 maxmemory-policy (默认是 noeviction )，推荐使用 volatile-lru。如果不设置最大内存，当 Redis 内存超出物理内存限制时，内存的数据会开始和磁盘产生频繁的交换 (swap)，会让 Redis 的性能急剧下降。
+>
+> 当 Redis 运行在主从模式时，只有主结点才会执行过期删除策略，然后把删除操作 `del key` 同步到从结点删除数据。
 
 ##### 淘汰策略的分类
 
